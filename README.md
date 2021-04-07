@@ -36,11 +36,11 @@ Each installed package will have an entry in the directories indicated
 for keeping the source, the compilation, and the installation. 
 
 * `--source-dir=<dir>`:
-   Directory where to put the sources; the default is \$PWD/src.
+   Directory where to put the sources; the default is $PWD/src.
 * `--build-dir=<dir>`:
-   Directory where to build the packages; the default is \$PWD/build.
+   Directory where to build the packages; the default is $PWD/build.
 * `--install-dir=<dir>`:
-   Directory where to install the packages; the default is \$PWD/install.
+   Directory where to install the packages; the default is $PWD/install.
 
 ## Package flavor options:
 Some packages have special optional features.
@@ -68,12 +68,12 @@ Some packages have special optional features.
    which implementation to use.
 
 * `--cmake=[build|system]`:
-   Use the cmake in \$PATH if 'system' is given; otherwise, it builds a recent version.
+   Use the cmake in $PATH if 'system' is given; otherwise, it builds a recent version.
    By default, it detects the cmake version available, and build cmake if it is not
    recent enough.
 
 * `--llvm=[build|system]`:
-   Use the LLVM indicated by llvm-config  in \$PATH if 'system' is given; otherwise, it
+   Use the LLVM indicated by llvm-config  in $PATH if 'system' is given; otherwise, it
    builds a recent version. By default, it detects the LLVM version available, and build 
    LLVM if it is not.
 
@@ -125,10 +125,11 @@ marks the package chroma with the flag --update and the package openblas with th
 
 * `--install <pkg> <pkg> ...`:
    Always download the source code, build, and install the packages marked with this
-   action.
+   action. Mark their dependent packages as --update.
 * `--update <pkg> <pkg> ...`:
-   Download the source code if it is not the source directory already, and install the
+   Download the source code if it is not in the source directory already, and install the
    packages marked with this action if they are not found on the install directory.
+   Mark their dependent packages as --update.
 * `--clean <pkg> <pkg> ...`:
    Remove the instances in the source, build, and install directories of the packages
    marked with this action.
@@ -139,13 +140,12 @@ marks the package chroma with the flag --update and the package openblas with th
    copy them to a machine without external internet access. 
 
 ## Set environ variables:
-All input options that are not one the flags or packages described before and contain '='
+All input options that are not flags or packages described above and contain '='
 will be considered a variable assignation. For instance:
 
 ```bash
-  chromaform chroma CC=icc CXX=icpc PATH=/mypaths:\$PATH
+  chromaform chroma CC=icc CXX=icpc PATH=/mypaths:$PATH
 ```
 
 will export the value of the variables CC, CXX, and PATH to subshells and executed
 commands.
-

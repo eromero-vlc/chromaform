@@ -119,10 +119,11 @@ marks the package chroma with the flag --update and the package openblas with th
 
 --install <pkg> <pkg> ...
    Always download the source code, build, and install the packages marked with this
-   action.
+   action. Mark their dependent packages as --update.
 --update <pkg> <pkg> ...
-   Download the source code if it is not the source directory already, and install the
+   Download the source code if it is not in the source directory already, and install the
    packages marked with this action if they are not found on the install directory.
+   Mark their dependent packages as --update.
 --clean <pkg> <pkg> ...
    Remove the instances in the source, build, and install directories of the packages
    marked with this action.
@@ -133,7 +134,7 @@ marks the package chroma with the flag --update and the package openblas with th
    copy them to a machine without external internet access. 
 
 * Set environ variables:
-All input options that are not one the flags or packages described before and contain '='
+All input options that are not flags or packages described above and contain '='
 will be considered a variable assignation. For instance:
 
   chromaform chroma CC=icc CXX=icpc PATH=/mypaths:\$PATH
