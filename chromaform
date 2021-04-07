@@ -3,17 +3,150 @@
 ## Ultimate script to install chroma ecosystem
 ##
 
-hlp_msg="chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir] [--download-only] \\
-                    [--float] [--jit] [--mg] [--pdf] [--next] [--llvm=build|--llvm=system] \\
-                    [--blas=[openblas|openblas-system|mkl| \\
-                    [-g|-O] [--knl] [--avx512] [--autoflags=no]
-                    [--install|--update] [llvm|openblas|eigen|qmp|qdp|superbblas|primme|mgproto|qphix|chroma]+\\
-                    [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]"
+hlp_msg="
+Script for installing chroma and redstar and related software.
+
+chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                     \\
+           [--float] [--jit] [--mg] [--pdf] [--next]                                    \\
+           [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                  \\
+           [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]      \\
+           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no] [--std=c++11|--std=c++14] \\
+           [--clean|--install|--update|--download-only] [cmake] [llvm] [openblas]       \\
+           [eigen] [qmp] [qdp] [superbblas] [primme] [mgproto] [qphix] [chroma]         \\
+           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                 \\
+           [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
+
+Examples:
+
+# Install chroma with mg_proto/QPhiX
+chromaform --mg chroma
+# Install chroma with mg_proto/QPhiX with AVX512 support
+chromaform --mg --avx512 chroma
+# Install chroma with QUDA for arch=sm_70
+chromaform --mg --jit chroma SM=sm_70
+# Install redstar and harom
+chromaform redstar harom
+
+* Location options:
+Each installed package will have an entry in the directories indicated
+for keeping the source, the compilation, and the installation. 
+
+--source-dir=<dir> 
+   Directory where to put the sources; the default is \$PWD/src.
+--build-dir=<dir>
+   Directory where to build the packages; the default is \$PWD/build.
+--install-dir=<dir>
+   Directory where to install the packages; the default is \$PWD/install.
+
+* Package flavor options:
+Some packages have special optional features.
+
+--float
+   Install the single-precision version; the double precision version is installed
+   by default. Used by QDP.
+--jit
+   Install the CUDA/JIT version; the CPU version is installed by default. Used by QDP,
+   superbblas, and chroma.
+--mg
+   Install multigrid extension of chroma; it isn't installed by default.
+--pdf
+   Install the devel-pdf branches of adat, colorvec and redstar; the devel branch is
+   installed by default.
+--next
+   Install upcoming versions of some packages; the version in devel or master is
+   installed by default. Used by:
+   - QPhiX/mg_proto/chroma: multiple right-hand-side inversions and efficient CPU/GPU
+     computation of disconnect diagrams, props and genprops with superbblas.
+   - colorvec/redstar: smearing elementals on the fly.
+
+* CMake, LLVM, BLAS:
+   Some packages require CMake, LLVM, and BLAS, and this are the options to select
+   which implementation to use.
+
+--cmake=[build|system]
+   Use the cmake in \$PATH if 'system' is given; otherwise, it builds a recent version.
+   By default, it detects the cmake version available, and build cmake if it is not
+   recent enough.
+
+--llvm=[build|system]
+   Use the LLVM indicated by llvm-config  in \$PATH if 'system' is given; otherwise, it
+   builds a recent version. By default, it detects the LLVM version available, and build 
+   LLVM if it is not.
+
+--blas=[openblas|openblas-system|atlas-system|mkl]
+   Build OpenBLAS if 'openblas' is given, or use the system OpenBLAS, ATLAS, or MKL if
+   'openblas-system', 'atlas-system', 'mkl' is given, respectively. If using MKL, plase
+   set the environ variable MKLROOT. By default, it detects if there are flags in LDFLAGS
+   and LIBS suggesting the use of MKL, OpenBLAS, and ATLAS, and use that. Otherwise, it
+   uses MKL if MKLROOT is set, or OpenBLAS or ATLAS if they have pkg-config sets
+   available.
+
+* Compilation flags:
+Control the flags use for building the packages.
+
+-g|-O|-Onone
+   Append '-g3 -O0' to CFLAGS and CXXFLAGS if '-g' is given, of '-O3' if '-O' is given, 
+   or no flags are added if '-Onone' is given. By default, '-O3' is appended.
+
+--avx512
+   Append flags in CFLAGS and CXXFLAGS to activate AVX512 extensions in the compiler,
+   and set the QphiX isa=avx512. No AVX512 extension is set by default and QPhiX is built
+   with isa=avx2.
+
+--knl
+   Append flags in CFLAGS and CXXFLAGS to activate KNL and AVX512 extensions in the
+   compiler, and set the QphiX isa=avx512. No AVX512 extension is set by default and
+   QPhiX is built with isa=avx2.
+
+--std=c++11|c++14   
+   Append the given flag to CXXFLAGS; --std=c++14 is appended by default.
+
+--autoflags=no
+   If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
+   --avx512, --knl, and --std, or any automatic heuristic in this script. By default,
+   besides setting CFLAGS and CXXFLAGS as described, flags are added to activate AVX2 and
+   OpenMP compiler extensions.
+
+* Actions and packages:
+An action is either of the flags --clean, --install, or --update, and can be followed by
+several packages and other actions. The --update action is implied if no other action was
+given before. For instance:
+
+  chromaform chroma --install openblas
+
+marks the package chroma with the flag --update and the package openblas with the flag
+--install. The actions are described in the following:
+
+--install <pkg> <pkg> ...
+   Always download the source code, build, and install the packages marked with this
+   action.
+--update <pkg> <pkg> ...
+   Download the source code if it is not the source directory already, and install the
+   packages marked with this action if they are not found on the install directory.
+--clean <pkg> <pkg> ...
+   Remove the instances in the source, build, and install directories of the packages
+   marked with this action.
+
+--download-only
+   If given, no building nor installation is done, only changes on the source directory
+   are going to be performed. This is useful to download all the sources required and
+   copy them to a machine without external internet access. 
+
+* Set environ variables:
+All input options that are not one the flags or packages described before and contain '='
+will be considered a variable assignation. For instance:
+
+  chromaform chroma CC=icc CXX=icpc PATH=/mypaths:\$PATH
+
+will export the value of the variables CC, CXX, and PATH to subshells and executed
+commands.
+"
 
 srcdir="src"
 builddir="build"
 installdir="install"
 download_only="nop"
+do_cleaning="nop"
 use_float="nop"
 use_jit="nop"
 use_avx512="nop"
@@ -24,7 +157,7 @@ use_llvm=""
 use_blas=""
 use_cmake=""
 use_autoflags="yes"
-use_opt="nop"
+use_opt="opt"
 use_knl="nop"
 use_std="c++14"
 action="install"
@@ -52,6 +185,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--avx512) use_avx512="yes";;
 	--mg) use_mg="yes";;
 	--next) use_next="yes";;
+	--clean) action="clean";do_cleaning="yes";;
 	--install) action="install";;
 	--update) action="update";;
 	--llvm=build) use_llvm="llvm";;
@@ -66,6 +200,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--autoflags=yes) use_autoflags="yes";;
 	-g) use_opt="debug";;
 	-O) use_opt="opt";;
+	-Onone) use_opt="nop";;
 	--knl) use_knl="yes"; use_avx512="yes";;
 	--c++11) use_std="c++11";;
 	--c++14) use_std="c++14";;
@@ -207,13 +342,13 @@ fi
 # Otherwise, try to detect an available BLAS on the system,
 # or compile OpenBLAS
 
-case "$LDFLAGS $LIBS" in
-*mkl*) use_blas="mkl-system";;
-*openblas*) use_blas="openblas-system";;
-*atlas*) use_blas="atlas-system";;
-*)
-	if [ x${use_blas}x == xx ]; then
-		info "No BLAS suggestion give; detecting BLAS..."
+if [ x${use_blas}x == xx ]; then
+	info "No BLAS suggestion give; detecting BLAS..."
+	case "$LDFLAGS $LIBS" in
+	*libmkl*|*-mkl*) use_blas="mkl-system";;
+	*openblas*) use_blas="openblas-system";;
+	*atlas*) use_blas="atlas-system";;
+	*)
 		if [ x${openblas}x != xx ]; then
 			use_blas="openblas"
 		elif [ x${MKLROOT}x != xx ]; then
@@ -234,9 +369,9 @@ case "$LDFLAGS $LIBS" in
 		else
 			use_blas="openblas"
 		fi
-	fi
 	;;
-esac
+	esac
+fi
 
 # Detect if there is a cmake available in case the user does not give a clue
 
@@ -334,7 +469,7 @@ if [ x${qdp}x != xx ]; then
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
-	[ $use_next == yes ] && quda_src="quda2"
+	# [ $use_next == yes ] && quda_src="quda2"
 fi
 if [ x${qphix}x != xx ]; then
 	qphix_src="qphix"
@@ -457,6 +592,10 @@ EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
 		[ x${act}x == xupdatex -a -d $srcdir/$proj ] && continue
+		if [ $do_cleaning == yes ]; then
+			[ x${act}x == xclean -a -d $srcdir/$proj ] && rm -f $srcdir/$proj
+			continue
+		fi
 		info "Downloading $proj"
 		run rm -rf $srcdir/$proj $tmp/{d,d.zip,d.bz2,d.xz,d.gz}
 		case $repo in
@@ -470,7 +609,13 @@ EOF
 	done
 done
 
-[ $download_only == yes ] && exit 0
+if [ $download_only == yes ]; then
+	if [ $do_cleaning == yes ]; then
+		echo "Combining --download-only with --clean actions is meaningless."
+		exit 1
+	fi
+	exit 0
+fi
 
 # Installing packages
 
@@ -486,8 +631,10 @@ if [ x${cmake}x != xx ]; then
 	sdir="${srcdir}/${cmake_src}"
 	bdir="${builddir}/${cmake_install}"
 	idir="${installdir}/${cmake_install}"
-	info "Doing cmake; source=$sdir build=$bdir install=$idir"
-	if [ ${cmake} == install -o ! -d ${idir} ]; then
+	info "Doing ${cmake} cmake; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${cmake} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${cmake} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -507,8 +654,10 @@ if [ x${llvm}x != xx ]; then
 	sdir="${srcdir}/${llvm_src}"
 	bdir="${builddir}/${llvm_install}"
 	idir="${installdir}/${llvm_install}"
-	info "Doing LLVM; source=$sdir build=$bdir install=$idir"
-	if [ ${llvm} == install -o ! -d ${idir} ]; then
+	info "Doing ${llvm} LLVM; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${llvm} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${llvm} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -534,8 +683,10 @@ if [ x${openblas}x != xx ]; then
 	sdir="${srcdir}/${openblas_src}"
 	bdir="${builddir}/${openblas_install}"
 	idir="${installdir}/${openblas_install}"
-	info "Doing OpenBLAS; source=$sdir build=$bdir install=$idir"
-	if [ ${openblas} == install -o ! -d ${idir} ]; then
+	info "Doing ${openblas} OpenBLAS; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${openblas} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${openblas} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -553,8 +704,10 @@ if [ x${tensor}x != xx ]; then
 	sdir="${srcdir}/${tensor_src}"
 	bdir="${builddir}/${tensor_install}"
 	idir="${installdir}/${tensor_install}"
-	info "Doing tensor; source=$sdir build=$bdir install=$idir"
-	if [ ${tensor} == install -o ! -d ${idir} ]; then
+	info "Doing ${tensor} tensor; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${tensor} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${tensor} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -570,8 +723,10 @@ if [ x${hadron}x != xx ]; then
 	sdir="${srcdir}/${hadron_src}"
 	bdir="${builddir}/${hadron_install}"
 	idir="${installdir}/${hadron_install}"
-	info "Doing hadron; source=$sdir build=$bdir install=$idir"
-	if [ ${hadron} == install -o ! -d ${idir} ]; then
+	info "Doing ${hadron} hadron; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${hadron} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${hadron} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -587,8 +742,10 @@ if [ x${adat}x != xx ]; then
 	sdir="${srcdir}/${adat_src}"
 	bdir="${builddir}/${adat_install}"
 	idir="${installdir}/${adat_install}"
-	info "Doing adat; source=$sdir build=$bdir install=$idir"
-	if [ ${adat} == install -o ! -d ${idir} ]; then
+	info "Doing ${adat} adat; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${adat} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${adat} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -604,8 +761,10 @@ if [ x${colorvec}x != xx ]; then
 	sdir="${srcdir}/${colorvec_src}"
 	bdir="${builddir}/${colorvec_install}"
 	idir="${installdir}/${colorvec_install}"
-	info "Doing colorvec; source=$sdir build=$bdir install=$idir"
-	if [ ${colorvec} == install -o ! -d ${idir} ]; then
+	info "Doing ${colorvec} colorvec; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${colorvec} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${colorvec} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -621,8 +780,10 @@ if [ x${qmp}x != xx ]; then
 	sdir="${srcdir}/${qmp_src}"
 	bdir="${builddir}/${qmp_install}"
 	idir="${installdir}/${qmp_install}"
-	info "Doing qmp; source=$sdir build=$bdir install=$idir"
-	if [ ${qmp} == install -o ! -d ${idir} ]; then
+	info "Doing ${qmp} qmp; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${qmp} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${qmp} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -648,8 +809,10 @@ if [ x${qdp}x != xx ]; then
 		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
 		bdir="${builddir}/${qdp_install}"
 		idir="${installdir}/${qdp_install}"
-		info "Doing QDP nd=$qdp_nd; source=$sdir build=$bdir install=$idir"
-		if [ ${qdp} == install -o ! -d ${idir} ]; then
+		info "Doing ${qdp} QDP nd=$qdp_nd; source=$sdir build=$bdir install=$idir"
+		if [ $do_cleaning == yes ]; then
+			[ ${qdp} == clean ] && rm -rf $sdir $bdir $idir
+		elif [ ${qdp} == install -o ! -d ${idir} ]; then
 			( cd $sdir && run autoreconf -f )
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
@@ -680,8 +843,10 @@ if [ x${quda}x != xx ]; then
 	sdir="${srcdir}/${quda_src}"
 	bdir="${builddir}/${quda_install}"
 	idir="${installdir}/${quda_install}"
-	info "Doing QUDA; source=$sdir build=$bdir install=$idir"
-	if [ ${quda} == install -o ! -d ${idir} ]; then
+	info "Doing ${quda} QUDA; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${quda} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${quda} == install -o ! -d ${idir} ]; then
 		# Fix minor issues
 		run rm -rf $sdir/include/externals/cub
 		run sed -i -e 's/#ifdef USE_QDPJIT/#if 0/g' $sdir/lib/malloc.cpp
@@ -741,8 +906,10 @@ if [ x${qphix}x != xx ]; then
 	sdir="${srcdir}/${qphix_src}"
 	bdir="${builddir}/${qphix_install}"
 	idir="${installdir}/${qphix_install}"
-	info "Doing QPhiX; source=$sdir build=$bdir install=$idir"
-	if [ ${qphix} == install -o ! -d ${idir} ]; then
+	info "Doing ${qphix} QPhiX; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${qphix} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${qphix} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -771,8 +938,10 @@ if [ x${primme}x != xx ]; then
 	sdir="${srcdir}/${primme_src}"
 	bdir="${builddir}/${primme_install}"
 	idir="${installdir}/${primme_install}"
-	info "Doing PRIMME; source=$sdir build=$bdir install=$idir"
-	if [ ${primme} == install -o ! -d ${idir} ]; then
+	info "Doing ${primme} PRIMME; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${primme} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${primme} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${primme_src} $bdir
 		run $MAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN
@@ -788,8 +957,10 @@ if [ x${superbblas}x != xx ]; then
 	sdir="${srcdir}/${superbblas_src}"
 	bdir="${builddir}/${superbblas_install}"
 	idir="${installdir}/${superbblas_install}"
-	info "Doing Superbblas; source=$sdir build=$bdir install=$idir"
-	if [ ${superbblas} == install -o ! -d ${idir} ]; then
+	info "Doing ${superbblas} Superbblas; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${superbblas} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${superbblas} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${superbblas_src} $bdir
 		make_action="install_cpu"
@@ -806,8 +977,10 @@ if [ x${mgproto}x != xx ]; then
 	sdir="${srcdir}/${mgproto_src}"
 	bdir="${builddir}/${mgproto_install}"
 	idir="${installdir}/${mgproto_install}"
-	info "Doing mgproto; source=$sdir build=$bdir install=$idir"
-	if [ ${mgproto} == install -o ! -d ${idir} ]; then
+	info "Doing ${mgproto} mgproto; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${mgproto} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${mgproto} == install -o ! -d ${idir} ]; then
 		case $use_blas in
 		mkl*) blas="Intel10_64lp_seq";;
 		openblas*) blas="OpenBLAS";;
@@ -850,8 +1023,10 @@ if [ x${chroma}x != xx ]; then
 	sdir="${srcdir}/${chroma_src}"
 	bdir="${builddir}/${chroma_install}"
 	idir="${installdir}/${chroma_install}"
-	info "Doing chroma; source=$sdir build=$bdir install=$idir"
-	if [ ${chroma} == install -o ! -d ${idir} ]; then
+	info "Doing ${chroma} chroma; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${chroma} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${chroma} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -892,8 +1067,10 @@ if [ x${harom}x != xx ]; then
 	sdir="${srcdir}/${harom_src}"
 	bdir="${builddir}/${harom_install}"
 	idir="${installdir}/${harom_install}"
-	info "Doing harom; source=$sdir build=$bdir install=$idir"
-	if [ ${harom} == install -o ! -d ${idir} ]; then
+	info "Doing ${harom} harom; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${harom} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${harom} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -910,8 +1087,10 @@ if [ x${redstar}x != xx ]; then
 	sdir="${srcdir}/${redstar_src}"
 	bdir="${builddir}/${redstar_install}"
 	idir="${installdir}/${redstar_install}"
-	info "Doing redstar; source=$sdir build=$bdir install=$idir"
-	if [ ${redstar} == install -o ! -d ${idir} ]; then
+	info "Doing ${redstar} redstar; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${redstar} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${redstar} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -928,8 +1107,10 @@ if [ x${laplace_eigs}x != xx ]; then
 	sdir="${srcdir}/${laplace_eigs_src}"
 	bdir="${builddir}/${laplace_eigs_install}"
 	idir="${installdir}/${laplace_eigs_install}"
-	info "Doing laplace_eigs; source=$sdir build=$bdir install=$idir"
-	if [ ${laplace_eigs} == install -o ! -d ${idir} ]; then
+	info "Doing ${laplace_eigs} laplace_eigs; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${laplace_eigs} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${laplace_eigs} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p ${idir}
 		run cp -r $idir $bdir
