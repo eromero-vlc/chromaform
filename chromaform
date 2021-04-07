@@ -1,0 +1,941 @@
+#!/bin/bash
+
+## Ultimate script to install chroma ecosystem
+##
+
+hlp_msg="chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir] [--download-only] \\
+                    [--float] [--jit] [--mg] [--pdf] [--next] [--llvm=build|--llvm=system] \\
+                    [--blas=[openblas|openblas-system|mkl| \\
+                    [-g|-O] [--knl] [--avx512] [--autoflags=no]
+                    [--install|--update] [llvm|openblas|eigen|qmp|qdp|superbblas|primme|mgproto|qphix|chroma]+\\
+                    [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]"
+
+srcdir="src"
+builddir="build"
+installdir="install"
+download_only="nop"
+use_float="nop"
+use_jit="nop"
+use_avx512="nop"
+use_pdf="nop"
+use_next="nop"
+use_mg="nop"
+use_llvm=""
+use_blas=""
+use_cmake=""
+use_autoflags="yes"
+use_opt="nop"
+use_knl="nop"
+use_std="c++14"
+action="install"
+MAKE="${MAKE:-make}"
+[ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
+[ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
+SM="${SM:-sm_70}"
+tmp="`mktemp -d`"
+
+finish() {
+	rm -rf $tmp
+}
+trap finish EXIT
+
+n=$#
+for (( i=1 ; i<=n ; ++i )); do
+	arg="$1"
+	case $arg in
+	--source-dir=*) srcdir="${arg#--source-dir=}";;
+	--build-dir=*) builddir="${arg#--build-dir=}";;
+	--install-dir=*) installdir="${arg#--install-dir=}";;
+	--download-only) download_only="yes";;
+	--float) use_float="yes";;
+	--jit) use_jit="yes";;
+	--avx512) use_avx512="yes";;
+	--mg) use_mg="yes";;
+	--next) use_next="yes";;
+	--install) action="install";;
+	--update) action="update";;
+	--llvm=build) use_llvm="llvm";;
+	--llvm=system) use_llvm="llvm-system";;
+	--cmake=build) use_cmake="cmake";;
+	--cmake=system) use_cmake="cmake-system";;
+	--blas=openblas) use_blas="openblas";;
+	--blas=openblas-system) use_blas="openblas-system";;
+	--blas=atlas-system) use_blas="atlas-system";;
+	--blas=mkl) use_blas="mkl-system";;
+	--autoflags=no) use_autoflags="nop";;
+	--autoflags=yes) use_autoflags="yes";;
+	-g) use_opt="debug";;
+	-O) use_opt="opt";;
+	--knl) use_knl="yes"; use_avx512="yes";;
+	--c++11) use_std="c++11";;
+	--c++14) use_std="c++14";;
+	openblas) openblas="$action";;
+	cmake) cmake="$action";;
+	llvm) llvm="$action";;
+	qmp) qmp="$action";;
+	qdp) qdp="$action";;
+	superbblas) superbblas="$action";;
+	qphix) qphix="$action";;
+	primme) primme="$action";;
+	mgproto) mgproto="$action";;
+	quda) quda="$action";;
+	mugiq) mugiq="$action";;
+	chroma) chroma="$action";;
+	laplace_eigs) laplace_eigs="$action";;
+	adat) adat="$action";;
+	colorvec) colorvec="$action";;
+	tensor) tensor="$action";;
+	hadron) hadron="$action";;
+	harom) harom="$action";;
+	redstar) redstar="$action";;
+	*=*) export ${arg%%=*}="${arg##*=}";;
+	*) echo "Sorry! Unsupported option '$arg'"; echo $hlp_msg; exit 1;;
+	esac
+	shift
+done
+
+# Prompting
+
+last_status=0 # Last command status
+run() {
+	echo "$>" "$@"
+	"$@"
+	last_status=$?
+	[ $last_status -eq 0 ] || exit $last_status
+	return 0
+}
+
+info() {
+	echo "#>" "$@"
+}
+
+check_success() {
+	echo "Exit status $last_status"
+	[ $last_status -ne 0 ] && exit $last_status
+}
+
+
+# Set default compilers
+
+CC="${CC:-mpicc}"
+CXX="${CXX:-mpicxx}"
+
+# Add extra flags
+
+detect_compiler() {
+	compiler="any"
+	if ( $CXX -v 2>&1 | grep -q '^gcc version' ); then
+		compiler="gcc"
+	elif ( $CXX -v 2>&1 | grep -q '^clang version' ); then
+		compiler="clang"
+	elif ( $CXX -v 2>&1 | grep -q '^icc version' ); then
+		compiler="icc"
+	elif ( $CXX -v 2>&1 | grep -q '^icpc version' ); then
+		compiler="icc"
+	fi
+	echo $compiler
+}
+
+if [ ${use_autoflags} == yes ]; then
+	if [ ${use_knl} == yes ]; then
+		# Active special tricks for a special architecture
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
+			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
+			;;
+		*)
+			CXXFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			CFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			;;
+		esac
+		use_avx512="yes"
+	elif [ ${use_avx512} == yes ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
+			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
+			;;
+		*)
+			CXXFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			CFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			;;
+		esac
+	else
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX2"
+			CFLAGS+=" -xCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=haswell -mavx2"
+			CFLAGS+=" -march=haswell -mavx2"
+			;;
+		esac
+	fi
+	if ! ( echo ${CXXFLAGS} | grep -q openmp ); then
+		# QDP is compiled with OpenMP, so we need to add the flag
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -qopenmp"
+			CFLAGS+=" -qopenmp"
+			LDFLAGS+=" -qopenmp"
+			;;
+		*)
+			CXXFLAGS+=" -fopenmp"
+			CFLAGS+=" -fopenmp"
+			LDFLAGS+=" -fopenmp"
+			;;
+		esac
+	fi
+	case ${use_opt} in
+	debug)
+		CFLAGS+=" -g3 -O0"
+		CXXFLAGS+=" -g3 -O0"
+		LDFLAGS+=" -g3 -O0"
+		;;
+	opt)
+		CFLAGS+=" -O3"
+		CXXFLAGS+=" -03"
+		LDFLAGS+=" -O3"
+		;;
+	esac
+	CXXFLAGS+=" -std=$use_std"
+fi
+
+# If the user gives BLAS options LDFLAGS or LIBS, use them.
+# Otherwise, try to detect an available BLAS on the system,
+# or compile OpenBLAS
+
+case "$LDFLAGS $LIBS" in
+*mkl*) use_blas="mkl-system";;
+*openblas*) use_blas="openblas-system";;
+*atlas*) use_blas="atlas-system";;
+*)
+	if [ x${use_blas}x == xx ]; then
+		info "No BLAS suggestion give; detecting BLAS..."
+		if [ x${openblas}x != xx ]; then
+			use_blas="openblas"
+		elif [ x${MKLROOT}x != xx ]; then
+			use_blas="mkl"
+			CFLAGS+=" -I${MKLROOT}/include"
+			CXXFLAGS+=" -I${MKLROOT}/include"
+			LIBS+="  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_gnu_thread.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lgomp -lpthread -lm -ldl"
+		elif pkg-config --cflags openblas ; then
+			use_blas="openblas-system"
+			CFLAGS+=" `pkg-config --cflags openblas`"
+			CXXFLAGS+=" `pkg-config --cflags openblas`"
+			LIBS+=" `pkg-config --libs openblas`"
+		elif pkg-config --cflags atlas ; then
+			use_blas="atlas-system"
+			CFLAGS+=" `pkg-config --cflags atlas`"
+			CXXFLAGS+=" `pkg-config --cflags atlas`"
+			LIBS+=" `pkg-config --libs atlas`"
+		else
+			use_blas="openblas"
+		fi
+	fi
+	;;
+esac
+
+# Detect if there is a cmake available in case the user does not give a clue
+
+if [ x${use_cmake}x == xx ]; then
+	info "No cmake suggestion given; detecting cmake version..."
+	use_cmake="cmake"
+	if cmake --version &> /dev/null ; then
+		cmake_version="`cmake --version 2>&1  | grep "^cmake version" | tr . ' '`"
+		ver_maj="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_maj; done`"
+		ver_minor="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_minor; done`"
+		[ $(( ver_maj >= 3 && ver_minor >= 13 )) -eq 1 ] && use_cmake="cmake-system"
+	fi
+fi
+
+# Detect if there is a LLVM available in case the user does not give a clue
+
+if [ x${use_llvm}x == xx ]; then
+    if [ x${llvm}x != xx ]; then
+        use_llvm="llvm"
+    elif llvm-config --version &> /dev/null ; then
+        llvm_ver="`llvm-config --version`"
+        case $llvm_ver in
+        11*|12*) use_llvm="llvm-system";;
+        *) use_llvm="llvm";;
+        esac
+    else
+        use_llvm="llvm"
+    fi
+fi
+
+# Print basic variables
+
+info "Using PATH: $PATH"
+info "Using cmake: ${use_cmake}"
+info "Using llvm: ${use_llvm}"
+info "Using BLAS: ${use_blas}"
+info "Using CC=$CC"
+info "Using CFLAGS=$CFLAGS"
+info "Using CXX=$CXX"
+info "Using CXXFLAGS=$CXXFLAGS"
+info "Using FC=$FC"
+info "Using LDFLAGS=$LDFLAGS"
+info "Using LIBS=$LIBS"
+export CC CFLAGS CXX CXXFLAGS FC LDFLAGS LIBS
+
+# Process dependencies
+
+if [ $use_jit == nop ]; then
+	[ $use_mg == yes -a x${chroma}x != xx ] && mgproto="${mgproto:-update}"
+	[ x${mgproto}x != xx ] && qphix="${qphix:-update}"
+	[ $use_next == yes -a x${mgproto}x != xx ] && primme="${primme:-update}"
+else
+	[ $use_mg == yes -a x${chroma}x != xx ] && quda="${quda:-update}"
+fi
+[ $use_next == yes -a x${chroma}x != xx ] && superbblas="${superbblas:-update}"
+[ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
+[ x${qdp}x != xx ] && qmp="${qmp:-update}"
+[ $use_jit == yes -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
+[ x${qphix}${quda}x != xx ] && eigen="${eigen:-download}"
+
+[ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
+[ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
+[ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
+[ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
+[ x${harom}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
+[ x${hadron}x != xx ] && tensor="${tensor:-update}"
+
+[ x${tensor}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
+[ x${primme}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
+[ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
+if [ $use_blas != openblas -a x${openblas}x != xx ]; then
+	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
+	exit 1
+fi
+if [ $use_jit == yes -a x${laplace_eigs}${harom}x != xx ]; then
+	echo "Incompatible options: --jit cannot be use while targeting laplace_eigs or harom"
+	exit 1
+fi
+
+[ x${llvm}${qphix}${mgproto}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
+
+# Download
+
+mkdir -p $srcdir
+srcdir="`realpath $srcdir`"
+info "Source directory: $srcdir"
+
+if [ x${qmp}x != xx ]; then
+	qmp_src="qmp"
+fi
+if [ x${qdp}x != xx ]; then
+	qdp_src="qdpxx"
+	[ $use_jit == yes ] && qdp_src="qdp-jit"
+	[ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
+fi
+if [ x${quda}x != xx ]; then
+	quda_src="quda"
+	[ $use_next == yes ] && quda_src="quda2"
+fi
+if [ x${qphix}x != xx ]; then
+	qphix_src="qphix"
+	[ $use_next == yes ] && qphix_src="qphix2"
+fi
+if [ x${mgproto}x != xx ]; then
+	mgproto_src="mgproto"
+	[ $use_next == yes ] && mgproto_src="mgproto2"
+fi
+if [ x${chroma}x != xx ]; then
+	chroma_src="chroma"
+	[ $use_next == yes ] && chroma_src="chroma2"
+fi
+if [ x${primme}x != xx ]; then
+	primme_src="primme"
+fi
+if [ x${cmake}x != xx ]; then
+	cmake_src="cmake"
+fi
+if [ x${llvm}x != xx ]; then
+	llvm_src="llvm"
+fi
+if [ x${openblas}x != xx ]; then
+	openblas_src="openblas"
+fi
+if [ x${eigen}x != xx ]; then
+	eigen_src="eigen"
+fi
+if [ x${superbblas}x != xx ]; then
+	superbblas_src="superbblas"
+fi
+if [ x${adat}x != xx ]; then
+	adat_src="adat"
+	[ $use_pdf == yes ] && adat_src="adat-pdf"
+fi
+if [ x${colorvec}x != xx ]; then
+	colorvec_src="colorvec"
+	[ $use_pdf == yes ] && colorvec_src="colorvec-pdf"
+	[ $use_next == yes ] && colorvec_src="colorvec2"
+	if [ $use_next == yes -a $use_pdf == yes ]; then
+		echo "Unsupported options: --pdf and --next for colorvec"
+		exit 1
+	fi
+fi
+if [ x${tensor}x != xx ]; then
+	tensor_src="tensor"
+fi
+if [ x${hadron}x != xx ]; then
+	hadron_src="hadron"
+fi
+if [ x${harom}x != xx ]; then
+	harom_src="harom"
+fi
+if [ x${redstar}x != xx ]; then
+	redstar_src="redstar"
+	[ $use_pdf == yes ] && redstar_src="redstar-pdf"
+	[ $use_next == yes ] && redstar_src="redstar2"
+	if [ $use_next == yes -a $use_pdf == yes ]; then
+		echo "Unsupported options: --pdf and --next for redstar"
+		exit 1
+	fi
+fi
+if [ x${laplace_eigs}x != xx ]; then
+	laplace_eigs_src="laplace_eigs"
+fi
+
+cat << EOF | while read act proj
+$cmake        $cmake_src
+$llvm         $llvm_src
+$openblas     $openblas_src
+$eigen        $eigen_src
+$primme       $primme_src
+$qmp          $qmp_src
+$qdp          $qdp_src
+$qphix        $qphix_src
+$mgproto      $mgproto_src
+$superbblas   $superbblas_src
+$quda         $quda_src
+$chroma       $chroma_src
+$laplace_eigs $laplace_eigs_src
+$adat         $adat_src
+$colorvec     $colorvec_src
+$tensor       $tensor_src
+$hadron       $hadron_src
+$harom        $harom_src
+$redstar      $redstar_src
+EOF
+do
+        cat << EOF | while read name repo branch
+qdpxx            git@github.com:usqcd-software/qdpxx.git         devel
+qdp-jit          git@github.com:JeffersonLab/qdp-jit.git         devel
+qmp              git@github.com:usqcd-software/qmp.git           devel
+chroma           git@github.com:JeffersonLab/chroma.git          devel
+chroma2          git@github.com:eromero-vlc/chroma.git           eloy/superb
+qphix            git@github.com:JeffersonLab/qphix.git           devel
+qphix2           git@github.com:eromero-vlc/qphix.git            eloy/disco
+mgproto          git@github.com:eromero-vlc/mg_proto.git   devel
+mgproto2         git@github.com:eromero-vlc/mg_proto.git         eloy/disco
+harom            git@github.com:JeffersonLab/harom.git           devel
+hadron           git@github.com:JeffersonLab/hadron.git          devel
+tensor           git@github.com:JeffersonLab/tensor.git          master
+redstar          git@github.com:JeffersonLab/redstar.git         devel
+redstar2         git@github.com:JeffersonLab/redstar.git         eloy/hadron-node-lib
+redstar-pdf      git@github.com:JeffersonLab/redstar.git         devel-pdf
+adat             git@github.com:JeffersonLab/adat.git            devel
+adat-pdf         git@github.com:JeffersonLab/adat.git            devel-pdf
+colorvec         git@github.com:JeffersonLab/colorvec.git        devel
+colorvec-pdf     git@github.com:JeffersonLab/colorvec.git        devel-pdf
+colorvec2        git@github.com:JeffersonLab/colorvec.git        eloy/hadron-node-lib
+laplace_eigs     git@github.com:JeffersonLab/laplace_eigs.git    devel
+primme           git@github.com:primme/primme.git                master
+eigen            https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
+superbblas       git@github.com:eromero-vlc/superbblas.git       master
+cmake            https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
+llvm             https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/llvm-11.0.1.src.tar.xz
+quda             git@github.com:lattice/quda.git                 v1.0.0
+mugiq            git@github.com:ckallidonis/mugiq.git            master
+quda-mugiq       git@github.com:ckallidonis/quda.git             CK-MGDeflate
+EOF
+	do
+		[ x${proj}x != x${name}x ] && continue
+		[ x${act}x == xupdatex -a -d $srcdir/$proj ] && continue
+		info "Downloading $proj"
+		run rm -rf $srcdir/$proj $tmp/{d,d.zip,d.bz2,d.xz,d.gz}
+		case $repo in
+		*zip) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.zip && unzip $tmp/d.zip -d $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*bz2) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.bz2 && tar xjf $tmp/d.bz2 -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*gz) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.gz && tar xzf $tmp/d.gz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*xz) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.xz && tar xJf $tmp/d.xz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*git*) run git clone --recursive $repo -b $branch $srcdir/$proj;;
+		*) echo "Don't know how to download $repo"; exit 1;;
+		esac
+	done
+done
+
+[ $download_only == yes ] && exit 0
+
+# Installing packages
+
+run mkdir -p $builddir
+run mkdir -p $installdir
+builddir="`realpath $builddir`"
+installdir="`realpath $installdir`"
+info "Build directory: $builddir"
+info "Install directory: $installdir"
+
+if [ x${cmake}x != xx ]; then
+	cmake_install="cmake"
+	sdir="${srcdir}/${cmake_src}"
+	bdir="${builddir}/${cmake_install}"
+	idir="${installdir}/${cmake_install}"
+	info "Doing cmake; source=$sdir build=$bdir install=$idir"
+	if [ ${cmake} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		if cmake --version &> /dev/null; then
+			run cmake -DCMAKE_USE_OPENSSL=OFF -DCMAKE_INSTALL_PREFIX=${idir} ${sdir}
+		else
+			run $sdir/configure --prefix=$idir
+		fi
+		run ${MAKE} -j $MAKE_JN install
+		popd
+	fi
+	export PATH=$idir/bin:$PATH
+fi
+
+if [ x${llvm}x != xx ]; then
+	llvm_install="llvm"
+	sdir="${srcdir}/${llvm_src}"
+	bdir="${builddir}/${llvm_install}"
+	idir="${installdir}/${llvm_install}"
+	info "Doing LLVM; source=$sdir build=$bdir install=$idir"
+	if [ ${llvm} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run cmake \
+		      -DLLVM_ENABLE_TERMINFO="OFF" \
+		      -DCMAKE_BUILD_TYPE=Release \
+		      -DCMAKE_INSTALL_PREFIX=${idir} \
+		      -DLLVM_TARGETS_TO_BUILD="NVPTX;X86;XCore" \
+		      -DLLVM_ENABLE_ZLIB="OFF" \
+		      -DBUILD_SHARED_LIBS="OFF" \
+		      -DLLVM_ENABLE_RTTI="ON"  \
+		      $sdir
+		run ${MAKE} -j $MAKE_JN
+		run ${MAKE} install
+		popd
+	fi
+	export PATH=$idir/bin:$PATH
+	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+fi
+
+if [ x${openblas}x != xx ]; then
+	openblas_install="openblas"
+	sdir="${srcdir}/${openblas_src}"
+	bdir="${builddir}/${openblas_install}"
+	idir="${installdir}/${openblas_install}"
+	info "Doing OpenBLAS; source=$sdir build=$bdir install=$idir"
+	if [ ${openblas} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${MAKE} -C ${sdir} -j $MAKE_JN
+		run ${MAKE} -C ${sdir} install PREFIX=${idir}
+		popd
+	fi
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LIBS+=" ${idir}/libopenblas.a -lm -lpthreads"
+fi
+
+if [ x${tensor}x != xx ]; then
+	tensor_install="tensor"
+	sdir="${srcdir}/${tensor_src}"
+	bdir="${builddir}/${tensor_install}"
+	idir="${installdir}/${tensor_install}"
+	info "Doing tensor; source=$sdir build=$bdir install=$idir"
+	if [ ${tensor} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir}
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${hadron}x != xx ]; then
+	hadron_install="hadron"
+	sdir="${srcdir}/${hadron_src}"
+	bdir="${builddir}/${hadron_install}"
+	idir="${installdir}/${hadron_install}"
+	info "Doing hadron; source=$sdir build=$bdir install=$idir"
+	if [ ${hadron} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install}
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${adat}x != xx ]; then
+	adat_install="adat"
+	sdir="${srcdir}/${adat_src}"
+	bdir="${builddir}/${adat_install}"
+	idir="${installdir}/${adat_install}"
+	info "Doing adat; source=$sdir build=$bdir install=$idir"
+	if [ ${adat} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir}
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${colorvec}x != xx ]; then
+	colorvec_install="${colorvec_src}"
+	sdir="${srcdir}/${colorvec_src}"
+	bdir="${builddir}/${colorvec_install}"
+	idir="${installdir}/${colorvec_install}"
+	info "Doing colorvec; source=$sdir build=$bdir install=$idir"
+	if [ ${colorvec} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${qmp}x != xx ]; then
+	qmp_install="qmp"
+	sdir="${srcdir}/${qmp_src}"
+	bdir="${builddir}/${qmp_install}"
+	idir="${installdir}/${qmp_install}"
+	info "Doing qmp; source=$sdir build=$bdir install=$idir"
+	if [ ${qmp} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${qdp}x != xx ]; then
+	qdp_prec="double"
+	sdir="${srcdir}/${qdp_src}"
+	[ ${use_float} == yes ] && qdp_prec="single"
+	if [ $use_jit == yes ]; then
+		qdp_extra=" --enable-llvm11 --enable-dml-output-buffering --with-cuda=${CUDADIR}"
+		run rm -rf ${tmp}/h
+		run mkdir -p ${tmp}/h
+		run cp ${CUDADIR}/nvvm/libdevice/libdevice*bc ${tmp}/h/libdevice.bc
+		( cd $sdir && run bash ./pack_libdevice.sh ${tmp}/h )
+	fi
+	for qdp_nd in 3 4 ; do
+		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
+		bdir="${builddir}/${qdp_install}"
+		idir="${installdir}/${qdp_install}"
+		info "Doing QDP nd=$qdp_nd; source=$sdir build=$bdir install=$idir"
+		if [ ${qdp} == install -o ! -d ${idir} ]; then
+			( cd $sdir && run autoreconf -f )
+			run rm -rf $bdir $idir
+			run mkdir -p $bdir
+			pushd $bdir
+			run ${sdir}/configure \
+				--prefix=${idir} \
+        			--enable-Nd=$qdp_nd \
+			        --enable-parallel-arch=parscalar \
+				--enable-precision=${qdp_prec} \
+			        --enable-filedb \
+				--disable-generics \
+			        --enable-largefile \
+			        --enable-parallel-io \
+			        --enable-alignment=64 \
+				--with-qmp=${installdir}/${qmp_install} \
+			        --enable-openmp \
+				$qdp_extra
+			run ${MAKE} install -j $MAKE_JN
+			popd
+		fi
+	done
+	qdp_install="${qdp_src}-${qdp_prec}-nd4"
+	qdp3d_install="${qdp_src}-${qdp_prec}-nd3"
+fi
+
+if [ x${quda}x != xx ]; then
+	quda_install="${quda_src}-${qdp_install}"
+	sdir="${srcdir}/${quda_src}"
+	bdir="${builddir}/${quda_install}"
+	idir="${installdir}/${quda_install}"
+	info "Doing QUDA; source=$sdir build=$bdir install=$idir"
+	if [ ${quda} == install -o ! -d ${idir} ]; then
+		# Fix minor issues
+		run rm -rf $sdir/include/externals/cub
+		run sed -i -e 's/#ifdef USE_QDPJIT/#if 0/g' $sdir/lib/malloc.cpp
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run cmake  \
+			-DQUDA_DIRAC_CLOVER=ON \
+			-DQUDA_DIRAC_DOMAIN_WALL=OFF \
+			-DQUDA_DIRAC_NDEG_TWISTED_MASS=OFF \
+			-DQUDA_DIRAC_STAGGERED=OFF \
+			-DQUDA_DIRAC_TWISTED_MASS=OFF \
+			-DQUDA_DIRAC_TWISTED_CLOVER=OFF \
+			-DQUDA_DIRAC_WILSON=ON \
+			-DQUDA_DYNAMIC_CLOVER=OFF \
+			-DQUDA_FORCE_GAUGE=OFF \
+			-DQUDA_FORCE_HISQ=OFF \
+			-DQUDA_GAUGE_ALG=OFF \
+			-DQUDA_GAUGE_TOOLS=OFF \
+			-DQUDA_GPU_ARCH=$SM \
+			-DQUDA_INTERFACE_QDPJIT=ON \
+			-DQUDA_QDPJIT=ON \
+			-DQUDA_QDPJITHOME=${installdir}/${qdp_install} \
+			-DQUDA_INTERFACE_MILC=OFF \
+			-DQUDA_INTERFACE_CPS=OFF \
+			-DQUDA_INTERFACE_QDP=ON \
+			-DQUDA_INTERFACE_TIFR=OFF \
+			-DQUDA_MAGMA=OFF	\
+			-DQUDA_QMP=ON \
+			-DQUDA_QMPHOME=${installdir}/${qmp_install} \
+			-DQUDA_QIO=ON \
+			-DQUDA_QIOHOME=${installdir}/${qdp_install} \
+			-DQUDA_LIMEHOME=${installdir}/${qdp_install} \
+			-DQUDA_MULTIGRID=ON \
+			-DQUDA_MAX_MULTI_BLAS_N=9 \
+			-DQUDA_DOWNLOAD_EIGEN=NO \
+			-DEIGEN_INCLUDE_DIR=${srcdir}/${eigen_src} \
+			-DCMAKE_INSTALL_PREFIX=${idir} \
+			-DCMAKE_BUILD_TYPE=DEVEL \
+			-DCMAKE_CXX_COMPILER=${CXX} \
+			-DCMAKE_C_COMPILER=${CC} \
+			-DCMAKE_LINKER=${CXX} \
+			-DQUDA_BUILD_SHAREDLIB=NO \
+			-DQUDA_BUILD_ALL_TESTS=OFF \
+			-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
+			${sdir}
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${qphix}x != xx ]; then
+	qphix_install="${qphix_src}-${qdp_install}"
+	[ ${use_avx512} == yes ] && qphix_install="${qphix_src}-avx512"
+	qphix_isa="avx2"
+	[ ${use_avx512} == yes ] && qphix_isa="avx512"
+	sdir="${srcdir}/${qphix_src}"
+	bdir="${builddir}/${qphix_install}"
+	idir="${installdir}/${qphix_install}"
+	info "Doing QPhiX; source=$sdir build=$bdir install=$idir"
+	if [ ${qphix} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run cmake -Disa=${qphix_isa} \
+		      -Dhost_cxx=${CXX} \
+		      -Drecursive_jN=${MAKE_JN} \
+		      -DCMAKE_INSTALL_PREFIX=${idir} \
+		      -DQDPXX_DIR=${installdir}/${qdp_install} \
+		      -Dclover=TRUE \
+		      -Dtm_clover=TRUE \
+		      -Dcean=FALSE \
+		      -Dqdpalloc=FALSE \
+		      -Dqdpjit=FALSE \
+		      -Dtesting=OFF \
+		      -DPYTHON_EXECUTABLE="$( which python3 )" \
+		      -DPYTHON_INCLUDE_DIR=/usr/include \
+		      -DPYTHON_LIBRARY=/usr/lib \
+		      ${sdir}
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${primme}x != xx ]; then
+	primme_install="primme"
+	sdir="${srcdir}/${primme_src}"
+	bdir="${builddir}/${primme_install}"
+	idir="${installdir}/${primme_install}"
+	info "Doing PRIMME; source=$sdir build=$bdir install=$idir"
+	if [ ${primme} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run cp -r ${srcdir}/${primme_src} $bdir
+		run $MAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN
+	fi
+	CFLAGS+=" -I${installdir}/${primme_install}/include"
+	CXXFLAGS=" -I${installdir}/${primme_install}/include"
+	LIBS="${installdir}/${primme_install}/lib/libprimme.a $LIBS"
+fi
+
+if [ x${superbblas}x != xx ]; then
+	superbblas_install="superbblas-cpu"
+	[ $use_jit == yes ] superbblas_install="superbblas-cuda"
+	sdir="${srcdir}/${superbblas_src}"
+	bdir="${builddir}/${superbblas_install}"
+	idir="${installdir}/${superbblas_install}"
+	info "Doing Superbblas; source=$sdir build=$bdir install=$idir"
+	if [ ${superbblas} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run cp -r ${srcdir}/${superbblas_src} $bdir
+		make_action="install_cpu"
+		if [ $use_jit == yes ]; then
+			make_action="install_cuda"
+			NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS"
+		fi
+		run $MAKE -C ${bdir} $make_action BUILDDIR=${idir}
+	fi
+fi
+
+if [ x${mgproto}x != xx ]; then
+	mgproto_install="${mgproto_src}-${qphix_install}"
+	sdir="${srcdir}/${mgproto_src}"
+	bdir="${builddir}/${mgproto_install}"
+	idir="${installdir}/${mgproto_install}"
+	info "Doing mgproto; source=$sdir build=$bdir install=$idir"
+	if [ ${mgproto} == install -o ! -d ${idir} ]; then
+		case $use_blas in
+		mkl*) blas="Intel10_64lp_seq";;
+		openblas*) blas="OpenBLAS";;
+		atlas*) blas="ATLAS";;
+		esac
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		[ $use_next == yes ] && mgproto_extra="-DMG_USE_PRIMME=ON -DPRIMME_HOME=${installdir}/${primme_install}"
+		cmake \
+		    -DMG_USE_KOKKOS=FALSE \
+		    -DMG_USE_QPHIX=TRUE \
+		    -DQPHIX_DIR=${installdir}/${qphix_install} \
+		    -DMG_QPHIX_COMPRESS12=TRUE \
+		    -DMG_QPHIX_SOALEN=4 \
+		    -DMG_USE_AVX512=FALSE \
+		    -DEigen3_DIR=${srcdir}/${eigen_src} \
+		    -DKOKKOS_ENABLE_CUDA=FALSE \
+		    -DCMAKE_INSTALL_PREFIX=${idir} \
+		    -DQDPXX_DIR=${installdir}/${qdp_install} \
+		    -DBLA_STATIC=ON -DBLA_VENDOR=$blas \
+		    -DBUILD_TESTING=OFF \
+		    -DMG_DEFAULT_LOGLEVEL=DEBUG \
+		    -DMG_KOKKOS_USE_NEIGHBOR_TABLE=FALSE \
+		     $mgproto_extra \
+		     ${sdir}
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${chroma}x != xx ]; then
+	if [ $use_mg == nop ]; then
+		chroma_install="${chroma_src}-${qdp_install}"
+	elif [ $use_jit == nop ]; then
+		chroma_install="${chroma_src}-${mgproto_install}"
+	else
+		chroma_install="${chroma_src}-${quda_install}"
+	fi
+	sdir="${srcdir}/${chroma_src}"
+	bdir="${builddir}/${chroma_install}"
+	idir="${installdir}/${chroma_install}"
+	info "Doing chroma; source=$sdir build=$bdir install=$idir"
+	if [ ${chroma} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		if [ $use_mg == yes ]; then
+			if [ $use_jit == nop ]; then
+				chroma_extra="\
+			        	--with-qphix-solver=${installdir}/${qphix_install} \
+			        	--enable-qphix-solver-arch=${qphix_isa} \
+			        	--enable-qphix-solver-soalen=4 \
+			        	--disable-qphix-solver-compress12 \
+			        	--enable-qphix-solver-inner-type=f \
+			        	--enable-qphix-solver-inner-soalen=8 \
+			        	--with-mg-proto=${installdir}/${mgproto_install}"
+			else
+				chroma_extra="\
+				        --enable-quda-deviface \
+				        --with-quda=${installdir}/${quda_install}"
+			fi
+		fi
+		[ $use_jit == nop ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
+		[ $use_jit == yes ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
+		[ $use_next == yes ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+		run ${sdir}/configure \
+			--prefix=${idir} \
+			--with-qdp=${installdir}/${qdp_install} \
+			--with-qmp=${installdir}/${qmp_install} \
+		        --enable-static-packed-gauge \
+		        --enable-fused-clover-deriv-loops \
+			$chroma_extra
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${harom}x != xx ]; then
+	harom_install="harom"
+	sdir="${srcdir}/${harom_src}"
+	bdir="${builddir}/${harom_install}"
+	idir="${installdir}/${harom_install}"
+	info "Doing harom; source=$sdir build=$bdir install=$idir"
+	if [ ${harom} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-qdp=${installdir}/${qdp3d_install} \
+			--enable-experimental-baryon-blas-creation
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${redstar}x != xx ]; then
+	redstar_install="${redstar_src}"
+	sdir="${srcdir}/${redstar_src}"
+	bdir="${builddir}/${redstar_install}"
+	idir="${installdir}/${redstar_install}"
+	info "Doing redstar; source=$sdir build=$bdir install=$idir"
+	if [ ${redstar} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		[ $use_next == yes ] && redstar_extra="--with-colorvec=${installdir}/${colorvec_install}"
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}  $redstar_extra
+		run ${MAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${laplace_eigs}x != xx ]; then
+	laplace_eigs_install="laplace_eigs"
+	sdir="${srcdir}/${laplace_eigs_src}"
+	bdir="${builddir}/${laplace_eigs_install}"
+	idir="${installdir}/${laplace_eigs_install}"
+	info "Doing laplace_eigs; source=$sdir build=$bdir install=$idir"
+	if [ ${laplace_eigs} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p ${idir}
+		run cp -r $idir $bdir
+		pushd $bdir
+		run ${MAKE} ARCH="QMP" PRIMME_ENV=${installdir}/${primme_install} QDP_CONFIG_ND3_ENV=${installdir}/${qdp3d_install} QDP_CONFIG_ND4_ENV=${installdir}/${qdp_install} 
+		run cp laplace_eigs vecs_combine_4d vecs_combine_3d ${idir}
+		popd
+	fi
+fi
