@@ -5,11 +5,11 @@ Automatic installation of JLab's chroma and redstar packages.
 
 ```bash
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir] [--download-only] \
-                    [--float] [--jit] [--mg] [--pdf] [--next] [--llvm=build|--llvm=system] \
-                    [--blas=[openblas|openblas-system|mkl| \
-                    [-g|-O] [--knl] [--avx512] [--autoflags=no] \
-                    [--install|--update] [llvm|openblas|eigen|qmp|qdp|superbblas|primme|mgproto|qphix|chroma]+ \
-                    [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
+           [--float] [--jit] [--mg] [--pdf] [--next] [--llvm=build|--llvm=system] \
+           [--blas=[openblas|openblas-system|mkl| \
+           [-g|-O] [--knl] [--avx512] [--autoflags=no] \
+           [--install|--update] [llvm|openblas|eigen|qmp|qdp|superbblas|primme|mgproto|qphix|chroma]+ \
+           [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
 ```
 
 ## Examples:
