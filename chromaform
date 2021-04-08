@@ -3,7 +3,7 @@
 ## Ultimate script to install chroma ecosystem
 ##
 
-hlp_msg="
+read -r -d '' hlp_msg << 'EOF'
 Script for installing chroma and redstar and related software.
 
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                     \\
@@ -141,7 +141,7 @@ will be considered a variable assignation. For instance:
 
 will export the value of the variables CC, CXX, and PATH to subshells and executed
 commands.
-"
+EOF
 
 srcdir="src"
 builddir="build"
@@ -161,7 +161,7 @@ use_autoflags="yes"
 use_opt="opt"
 use_knl="nop"
 use_std="c++14"
-action="install"
+action="update"
 MAKE="${MAKE:-make}"
 [ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
 [ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
@@ -225,7 +225,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	harom) harom="$action";;
 	redstar) redstar="$action";;
 	*=*) export ${arg%%=*}="${arg##*=}";;
-	*) echo "Sorry! Unsupported option '$arg'"; echo $hlp_msg; exit 1;;
+	--help|-h) echo "$hlp_msg"; exit 0;;
+	*) echo "Sorry! Unsupported option '$arg'"; echo "$hlp_msg"; exit 1;;
 	esac
 	shift
 done
@@ -332,7 +333,7 @@ if [ ${use_autoflags} == yes ]; then
 		;;
 	opt)
 		CFLAGS+=" -O3"
-		CXXFLAGS+=" -03"
+		CXXFLAGS+=" -O3"
 		LDFLAGS+=" -O3"
 		;;
 	esac
@@ -429,17 +430,16 @@ else
 fi
 [ $use_next == yes -a x${chroma}x != xx ] && superbblas="${superbblas:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
-[ x${qdp}x != xx ] && qmp="${qmp:-update}"
-[ $use_jit == yes -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${qphix}${quda}x != xx ] && eigen="${eigen:-download}"
 
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
 [ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
-[ x${harom}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
+[ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
+[ $use_jit == yes -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${tensor}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${primme}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
@@ -466,7 +466,7 @@ fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
 	[ $use_jit == yes ] && qdp_src="qdp-jit"
-	[ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
+	#[ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -564,7 +564,7 @@ qdpxx            git@github.com:usqcd-software/qdpxx.git         devel
 qdp-jit          git@github.com:JeffersonLab/qdp-jit.git         devel
 qmp              git@github.com:usqcd-software/qmp.git           devel
 chroma           git@github.com:JeffersonLab/chroma.git          devel
-chroma2          git@github.com:eromero-vlc/chroma.git           eloy/superb
+chroma2          git@github.com:JeffersonLab/chroma.git          eloy/superb
 qphix            git@github.com:JeffersonLab/qphix.git           devel
 qphix2           git@github.com:eromero-vlc/qphix.git            eloy/disco
 mgproto          git@github.com:eromero-vlc/mg_proto.git   devel
@@ -709,7 +709,7 @@ if [ x${tensor}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${tensor} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${tensor} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		( cd $sdir && run bash autogen.sh )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -799,7 +799,7 @@ if [ x${qdp}x != xx ]; then
 	qdp_prec="double"
 	sdir="${srcdir}/${qdp_src}"
 	[ ${use_float} == yes ] && qdp_prec="single"
-	if [ $use_jit == yes ]; then
+	if [ $do_cleaning == nop -a $use_jit == yes ]; then
 		qdp_extra=" --enable-llvm11 --enable-dml-output-buffering --with-cuda=${CUDADIR}"
 		run rm -rf ${tmp}/h
 		run mkdir -p ${tmp}/h
@@ -945,7 +945,8 @@ if [ x${primme}x != xx ]; then
 	elif [ ${primme} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${primme_src} $bdir
-		run $MAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN
+		run $MAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC"
+		run cp ${bdir}/lib/libprimme.a ${idir}/lib
 	fi
 	CFLAGS+=" -I${installdir}/${primme_install}/include"
 	CXXFLAGS=" -I${installdir}/${primme_install}/include"
@@ -954,7 +955,7 @@ fi
 
 if [ x${superbblas}x != xx ]; then
 	superbblas_install="superbblas-cpu"
-	[ $use_jit == yes ] superbblas_install="superbblas-cuda"
+	[ $use_jit == yes ] && superbblas_install="superbblas-cuda"
 	sdir="${srcdir}/${superbblas_src}"
 	bdir="${builddir}/${superbblas_install}"
 	idir="${installdir}/${superbblas_install}"
