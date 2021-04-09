@@ -357,7 +357,7 @@ if [ x${use_blas}x == xx ]; then
 			use_blas="mkl"
 			CFLAGS+=" -I${MKLROOT}/include"
 			CXXFLAGS+=" -I${MKLROOT}/include"
-			LIBS+="  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_gnu_thread.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lgomp -lpthread -lm -ldl"
+			LIBS+=" -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl"
 		elif pkg-config --cflags openblas ; then
 			use_blas="openblas-system"
 			CFLAGS+=" `pkg-config --cflags openblas`"
