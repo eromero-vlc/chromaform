@@ -430,7 +430,7 @@ else
 fi
 [ $use_next == yes -a x${chroma}x != xx ] && superbblas="${superbblas:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
-[ x${qphix}${quda}x != xx ] && eigen="${eigen:-download}"
+[ x${qphix}${quda}x != xx ] && eigen="${eigen:-update}"
 
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
@@ -949,7 +949,7 @@ if [ x${primme}x != xx ]; then
 		run cp ${bdir}/lib/libprimme.a ${idir}/lib
 	fi
 	CFLAGS+=" -I${installdir}/${primme_install}/include"
-	CXXFLAGS=" -I${installdir}/${primme_install}/include"
+	CXXFLAGS+=" -I${installdir}/${primme_install}/include"
 	LIBS="${installdir}/${primme_install}/lib/libprimme.a $LIBS"
 fi
 
