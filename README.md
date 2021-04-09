@@ -30,6 +30,7 @@ chromaform --mg --jit chroma SM=sm_70
 # Install redstar and harom
 chromaform redstar harom
 ```
+See more examples at the end.
 
 ## Location options:
 Each installed package will have an entry in the directories indicated
@@ -149,3 +150,26 @@ will be considered a variable assignation. For instance:
 
 will export the value of the variables CC, CXX, and PATH to subshells and executed
 commands.
+
+## Examples on clusters:
+
+```bash
+# Default environment at JLab
+module load cmake
+source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.sh intel64
+./chromaform --mg --knl chroma CC=mpiicc CXX=mpiicpc
+./chromaform --mg --knl --next chroma CC=mpiicc CXX=mpiicpc
+
+# Default environment at NERSC (executables work for haswell & KNL)
+module load cmake
+./chromaform --mg --knl chroma CC=cc CXX=CC
+./chromaform --mg --knl --next chroma CC=cc CXX=CC
+
+# Default environment at TACC Frontera
+./chromaform --avx512 --mg chroma
+./chromaform --avx512 --mg --next chroma
+
+# Default environment at TACC Stampede2 (executables work for skylake & KNL)
+./chromaform --knl --mg chroma
+./chromaform --knl --mg --next chroma
+```
