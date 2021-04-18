@@ -9,11 +9,12 @@ Script for installing chroma and redstar and related software.
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                     \\
            [--float] [--jit] [--mg] [--pdf] [--next]                                    \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                  \\
+           [--thrust=build|--thrust=system]                                             \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]      \\
            [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no] [--std=c++11|--std=c++14] \\
-           [--clean|--install|--update|--download-only] [cmake] [llvm] [openblas]       \\
-           [eigen] [qmp] [qdp] [superbblas] [primme] [mgproto] [qphix] [chroma]         \\
-           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                 \\
+           [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]   \\
+           [openblas] [eigen] [qmp] [qdp] [superbblas] [primme] [mgproto] [qphix]       \\
+           [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]        \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
 
 Examples:
@@ -72,6 +73,11 @@ Some packages have special optional features.
    Use the LLVM indicated by llvm-config  in \$PATH if 'system' is given; otherwise, it
    builds a recent version. By default, it detects the LLVM version available, and build 
    LLVM if it is not.
+
+--thrust=[build|system]
+   Use the cub/thrust in the CUDA SDK if 'system' is given; otherwise, it
+   downloads a recent version. By default, it detects the thrust version available, and
+   download cub and thrust if it is not.
 
 --blas=[openblas|openblas-system|atlas-system|mkl]
    Build OpenBLAS if 'openblas' is given, or use the system OpenBLAS, ATLAS, or MKL if
@@ -155,6 +161,7 @@ use_pdf="nop"
 use_next="nop"
 use_mg="nop"
 use_llvm=""
+use_thrust=""
 use_blas=""
 use_cmake=""
 use_autoflags="yes"
@@ -162,7 +169,13 @@ use_opt="opt"
 use_knl="nop"
 use_std="c++14"
 action="update"
-MAKE="${MAKE:-make}"
+
+# Jean Zay's frontend does not have much memory and chroma linking fails often
+mymake() {
+	make "$@" || make "$@" -j 1 || make "$@" -j 1 || make "$@" -j 1 
+}
+
+MAKE="${MAKE:-mymake}"
 [ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
 [ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
 SM="${SM:-sm_70}"
@@ -191,6 +204,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--update) action="update";;
 	--llvm=build) use_llvm="llvm";;
 	--llvm=system) use_llvm="llvm-system";;
+	--thrust=build) use_thrust="thrust";;
+	--thrust=system) use_thrust="thrust-system";;
 	--cmake=build) use_cmake="cmake";;
 	--cmake=system) use_cmake="cmake-system";;
 	--blas=openblas) use_blas="openblas";;
@@ -208,6 +223,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	openblas) openblas="$action";;
 	cmake) cmake="$action";;
 	llvm) llvm="$action";;
+	cub) cub="$action";;
+	thrust) thrust="$action";;
 	qmp) qmp="$action";;
 	qdp) qdp="$action";;
 	superbblas) superbblas="$action";;
@@ -404,11 +421,28 @@ if [ x${use_llvm}x == xx ]; then
     fi
 fi
 
+# Detect if there is a cub/thrust available in case the user does not give a clue
+# Also thrust versions previous to CUDA 11 (thrust version < 1.9.10) may fail.
+# Since SDK CUDA 11, cub is also distributed. So, if cub is present, the thrust on
+# the SDK is good enough
+
+if [ x${use_thrust}x == xx ]; then
+	if [ x${thrust}x != xx ]; then
+		use_thrust="thrust"
+	elif [ -d $CUDADIR/targets/x86_64-linux/include/cub -a -d $CUDADIR/targets/x86_64-linux/include/thrust ]; then
+		use_thrust="thrust-system"
+	else
+		use_thrust="thrust"
+	fi
+fi
+
 # Print basic variables
 
 info "Using PATH: $PATH"
+info "Using CUDADIR: $CUDADIR"
 info "Using cmake: ${use_cmake}"
 info "Using llvm: ${use_llvm}"
+info "Using thrust: ${use_thrust}"
 info "Using BLAS: ${use_blas}"
 info "Using CC=$CC"
 info "Using CFLAGS=$CFLAGS"
@@ -449,6 +483,12 @@ if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 fi
 if [ $use_jit == yes -a x${laplace_eigs}${harom}x != xx ]; then
 	echo "Incompatible options: --jit cannot be use while targeting laplace_eigs or harom"
+	exit 1
+fi
+[ $use_jit == yes -a x${superbblas}${quda}x != xx -a $use_thrust == thrust ] && thrust="${thrust:-update}"
+[ x${thrust}x != xx ] && cub="${cub:-update}"
+if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
+	echo "Incompatible options: --thrust=system but also asking for compiling thrust"
 	exit 1
 fi
 
@@ -492,6 +532,12 @@ if [ x${cmake}x != xx ]; then
 fi
 if [ x${llvm}x != xx ]; then
 	llvm_src="llvm"
+fi
+if [ x${cub}x != xx ]; then
+	cub_src="cub"
+fi
+if [ x${thrust}x != xx ]; then
+	thrust_src="thrust"
 fi
 if [ x${openblas}x != xx ]; then
 	openblas_src="openblas"
@@ -540,6 +586,8 @@ fi
 cat << EOF | while read act proj
 $cmake        $cmake_src
 $llvm         $llvm_src
+$cub          $cub_src
+$thrust       $thrust_src
 $openblas     $openblas_src
 $eigen        $eigen_src
 $primme       $primme_src
@@ -560,35 +608,38 @@ $redstar      $redstar_src
 EOF
 do
         cat << EOF | while read name repo branch
-qdpxx            git@github.com:usqcd-software/qdpxx.git         devel
-qdp-jit          git@github.com:JeffersonLab/qdp-jit.git         devel
-qmp              git@github.com:usqcd-software/qmp.git           devel
-chroma           git@github.com:JeffersonLab/chroma.git          devel
-chroma2          git@github.com:JeffersonLab/chroma.git          eloy/superb
-qphix            git@github.com:JeffersonLab/qphix.git           devel
-qphix2           git@github.com:eromero-vlc/qphix.git            eloy/disco
-mgproto          git@github.com:eromero-vlc/mg_proto.git   devel
-mgproto2         git@github.com:eromero-vlc/mg_proto.git         eloy/disco
-harom            git@github.com:JeffersonLab/harom.git           devel
-hadron           git@github.com:JeffersonLab/hadron.git          devel
-tensor           git@github.com:JeffersonLab/tensor.git          master
-redstar          git@github.com:JeffersonLab/redstar.git         devel
-redstar2         git@github.com:JeffersonLab/redstar.git         eloy/hadron-node-lib
-redstar-pdf      git@github.com:JeffersonLab/redstar.git         devel-pdf
-adat             git@github.com:JeffersonLab/adat.git            devel
-adat-pdf         git@github.com:JeffersonLab/adat.git            devel-pdf
-colorvec         git@github.com:JeffersonLab/colorvec.git        devel
-colorvec-pdf     git@github.com:JeffersonLab/colorvec.git        devel-pdf
-colorvec2        git@github.com:JeffersonLab/colorvec.git        eloy/hadron-node-lib
-laplace_eigs     git@github.com:JeffersonLab/laplace_eigs.git    devel
-primme           git@github.com:primme/primme.git                master
+qdpxx            https://github.com/usqcd-software/qdpxx         devel
+qdp-jit          https://github.com/JeffersonLab/qdp-jit         devel
+qdp-jit-sb       https://github.com/JeffersonLab/qdp-jit         devel
+qmp              https://github.com/usqcd-software/qmp           devel
+chroma           https://github.com/JeffersonLab/chroma          devel
+chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
+qphix            https://github.com/JeffersonLab/qphix           devel
+qphix2           https://github.com/eromero-vlc/qphix            eloy/disco
+mgproto          https://github.com/eromero-vlc/mg_proto   devel
+mgproto2         https://github.com/eromero-vlc/mg_proto         eloy/disco
+harom            https://github.com/JeffersonLab/harom           devel
+hadron           https://github.com/JeffersonLab/hadron          devel
+tensor           https://github.com/JeffersonLab/tensor          master
+redstar          https://github.com/JeffersonLab/redstar         devel
+redstar2         https://github.com/JeffersonLab/redstar         eloy/hadron-node-lib
+redstar-pdf      https://github.com/JeffersonLab/redstar         devel-pdf
+adat             https://github.com/JeffersonLab/adat            devel
+adat-pdf         https://github.com/JeffersonLab/adat            devel-pdf
+colorvec         https://github.com/JeffersonLab/colorvec        devel
+colorvec-pdf     https://github.com/JeffersonLab/colorvec        devel-pdf
+colorvec2        https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
+laplace_eigs     https://github.com/JeffersonLab/laplace_eigs    devel
+primme           https://github.com/primme/primme                master
+superbblas       https://github.com/eromero-vlc/superbblas       master
+quda             https://github.com/lattice/quda                 v1.0.0
+mugiq            https://github.com/ckallidonis/mugiq            master
+quda-mugiq       https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen            https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
-superbblas       git@github.com:eromero-vlc/superbblas.git       master
 cmake            https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
 llvm             https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/llvm-11.0.1.src.tar.xz
-quda             git@github.com:lattice/quda.git                 v1.0.0
-mugiq            git@github.com:ckallidonis/mugiq.git            master
-quda-mugiq       git@github.com:ckallidonis/quda.git             CK-MGDeflate
+cub              https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
+thrust           https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -677,6 +728,24 @@ if [ x${llvm}x != xx ]; then
 	fi
 	export PATH=$idir/bin:$PATH
 	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+fi
+
+if [ x${cub}x != xx ]; then
+	cub_install="cub"
+	sdir="${srcdir}/${cub_src}"
+	info "Doing ${cub} CUB; source=$sdir"
+	if [ $do_cleaning == yes ]; then
+		[ ${cub} == clean ] && rm -rf $sdir
+	fi
+fi
+
+if [ x${thrust}x != xx ]; then
+	thrust_install="thrust"
+	sdir="${srcdir}/${thrust_src}"
+	info "Doing ${thrust} thrust; source=$sdir"
+	if [ $do_cleaning == yes ]; then
+		[ ${thrust} == clean ] && rm -rf $sdir
+	fi
 fi
 
 if [ x${openblas}x != xx ]; then
@@ -850,6 +919,7 @@ if [ x${quda}x != xx ]; then
 	elif [ ${quda} == install -o ! -d ${idir} ]; then
 		# Fix minor issues
 		run rm -rf $sdir/include/externals/cub
+		[ x${cub}x != xx ] && run ln -s ${srcdir}/${cub_src}/cub $sdir/include/externals/cub
 		run sed -i -e 's/#ifdef USE_QDPJIT/#if 0/g' $sdir/lib/malloc.cpp
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -968,7 +1038,8 @@ if [ x${superbblas}x != xx ]; then
 		make_action="install_cpu"
 		if [ $use_jit == yes ]; then
 			make_action="install_cuda"
-			NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS"
+			[ x${thrust}x != xx ] && sb_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
+			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_extra"
 		fi
 		run $MAKE -C ${bdir} $make_action BUILDDIR=${idir}
 	fi
