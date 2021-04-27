@@ -175,7 +175,7 @@ mymake() {
 	make "$@" || make "$@" -j 1 || make "$@" -j 1 || make "$@" -j 1 
 }
 
-MAKE="${MAKE:-mymake}"
+MYMAKE="${MAKE:-mymake}"
 [ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
 [ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
 SM="${SM:-sm_70}"
@@ -698,7 +698,7 @@ if [ x${cmake}x != xx ]; then
 		else
 			run $sdir/configure --prefix=$idir
 		fi
-		run ${MAKE} -j $MAKE_JN install
+		run ${MYMAKE} -j $MAKE_JN install
 		popd
 	fi
 	export PATH=$idir/bin:$PATH
@@ -725,8 +725,8 @@ if [ x${llvm}x != xx ]; then
 		      -DBUILD_SHARED_LIBS="OFF" \
 		      -DLLVM_ENABLE_RTTI="ON"  \
 		      $sdir
-		run ${MAKE} -j $MAKE_JN
-		run ${MAKE} install
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
 		popd
 	fi
 	export PATH=$idir/bin:$PATH
@@ -763,8 +763,8 @@ if [ x${openblas}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${MAKE} -C ${sdir} -j $MAKE_JN
-		run ${MAKE} -C ${sdir} install PREFIX=${idir}
+		run ${MYMAKE} -C ${sdir} -j $MAKE_JN
+		run ${MYMAKE} -C ${sdir} install PREFIX=${idir}
 		popd
 	fi
 	CFLAGS+=" -I${idir}/include"
@@ -786,7 +786,7 @@ if [ x${tensor}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		run ${sdir}/configure --prefix=${idir}
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -805,7 +805,7 @@ if [ x${hadron}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install}
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -824,7 +824,7 @@ if [ x${adat}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		run ${sdir}/configure --prefix=${idir}
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -843,7 +843,7 @@ if [ x${colorvec}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -862,7 +862,7 @@ if [ x${qmp}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -903,7 +903,7 @@ if [ x${qdp}x != xx ]; then
 				--with-qmp=${installdir}/${qmp_install} \
 			        --enable-openmp \
 				$qdp_extra
-			run ${MAKE} install -j $MAKE_JN
+			run ${MYMAKE} install -j $MAKE_JN
 			popd
 		fi
 	done
@@ -967,7 +967,7 @@ if [ x${quda}x != xx ]; then
 			-DQUDA_BUILD_ALL_TESTS=OFF \
 			-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
 			${sdir}
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -1002,7 +1002,7 @@ if [ x${qphix}x != xx ]; then
 		      -DPYTHON_INCLUDE_DIR=/usr/include \
 		      -DPYTHON_LIBRARY=/usr/lib \
 		      ${sdir}
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -1018,7 +1018,7 @@ if [ x${primme}x != xx ]; then
 	elif [ ${primme} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${primme_src} $bdir
-		run $MAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC"
+		run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC"
 		run cp ${bdir}/lib/libprimme.a ${idir}/lib
 	fi
 	CFLAGS+=" -I${installdir}/${primme_install}/include"
@@ -1044,7 +1044,7 @@ if [ x${superbblas}x != xx ]; then
 			[ x${thrust}x != xx ] && sb_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_extra"
 		fi
-		run $MAKE -C ${bdir} $make_action BUILDDIR=${idir}
+		run $MYMAKE -C ${bdir} $make_action BUILDDIR=${idir}
 	fi
 fi
 
@@ -1083,7 +1083,7 @@ if [ x${mgproto}x != xx ]; then
 		    -DMG_KOKKOS_USE_NEIGHBOR_TABLE=FALSE \
 		     $mgproto_extra \
 		     ${sdir}
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -1133,7 +1133,7 @@ if [ x${chroma}x != xx ]; then
 		        --enable-static-packed-gauge \
 		        --enable-fused-clover-deriv-loops \
 			$chroma_extra
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -1153,7 +1153,7 @@ if [ x${harom}x != xx ]; then
 		pushd $bdir
 		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-qdp=${installdir}/${qdp3d_install} \
 			--enable-experimental-baryon-blas-creation
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -1173,7 +1173,7 @@ if [ x${redstar}x != xx ]; then
 		pushd $bdir
 		[ $use_next == yes ] && redstar_extra="--with-colorvec=${installdir}/${colorvec_install}"
 		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}  $redstar_extra
-		run ${MAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
 fi
@@ -1191,7 +1191,7 @@ if [ x${laplace_eigs}x != xx ]; then
 		run mkdir -p ${idir}
 		run cp -r $idir $bdir
 		pushd $bdir
-		run ${MAKE} ARCH="QMP" PRIMME_ENV=${installdir}/${primme_install} QDP_CONFIG_ND3_ENV=${installdir}/${qdp3d_install} QDP_CONFIG_ND4_ENV=${installdir}/${qdp_install} 
+		run ${MYMAKE} ARCH="QMP" PRIMME_ENV=${installdir}/${primme_install} QDP_CONFIG_ND3_ENV=${installdir}/${qdp3d_install} QDP_CONFIG_ND4_ENV=${installdir}/${qdp_install} 
 		run cp laplace_eigs vecs_combine_4d vecs_combine_3d ${idir}
 		popd
 	fi
