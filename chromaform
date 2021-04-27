@@ -180,9 +180,12 @@ MAKE="${MAKE:-mymake}"
 [ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
 SM="${SM:-sm_70}"
 tmp="`mktemp -d`"
+idir=""
 
 finish() {
 	rm -rf $tmp
+	# If a make install failed in the middle, remove the whole directory
+	[ x${idir}x != xx ] && rm -rf $idir
 }
 trap finish EXIT
 
@@ -1193,3 +1196,7 @@ if [ x${laplace_eigs}x != xx ]; then
 		popd
 	fi
 fi
+
+# Everything went ok!
+# Avoid removing the last installation by function finish
+idir=""
