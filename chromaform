@@ -509,7 +509,7 @@ fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
 	[ $use_jit == yes ] && qdp_src="qdp-jit"
-	#[ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
+	[ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -611,10 +611,10 @@ do
         cat << EOF | while read name repo branch
 qdpxx            https://github.com/usqcd-software/qdpxx         devel
 qdp-jit          https://github.com/JeffersonLab/qdp-jit         devel
-qdp-jit-sb       https://github.com/JeffersonLab/qdp-jit         devel
+qdp-jit-sb       https://github.com/eromero-vlc/qdp-jit          eloy/superb
 qmp              https://github.com/usqcd-software/qmp           devel
 chroma           https://github.com/JeffersonLab/chroma          devel
-chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
+chroma2          https://github.com/JeffersonLab/chroma          eloy/superb-mine
 qphix            https://github.com/JeffersonLab/qphix           devel
 mgproto          https://github.com/JeffersonLab/mg_proto        devel
 harom            https://github.com/JeffersonLab/harom           devel
@@ -636,9 +636,10 @@ mugiq            https://github.com/ckallidonis/mugiq            master
 quda-mugiq       https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen            https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
 cmake            https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
-llvm             https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/llvm-11.0.1.src.tar.xz
+llvm             https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 cub              https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
 thrust           https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
+openblas         https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -654,11 +655,11 @@ EOF
 		*bz2) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.bz2 && tar xjf $tmp/d.bz2 -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
 		*gz) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.gz && tar xzf $tmp/d.gz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
 		*xz) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.xz && tar xJf $tmp/d.xz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
-		*git*) run git clone --recursive $repo -b $branch $srcdir/$proj;;
+		*git*) ( GIT_ASKPASS=w run git clone --recursive $repo -b $branch $srcdir/$proj ) || GIT_ASKPASS=w run git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} -b $branch $srcdir/$proj;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
-	done
-done
+	done || exit 1
+done || exit 1
 
 if [ $download_only == yes ]; then
 	if [ $do_cleaning == yes ]; then
@@ -759,13 +760,19 @@ if [ x${openblas}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${MYMAKE} -C ${sdir} -j $MAKE_JN
-		run ${MYMAKE} -C ${sdir} install PREFIX=${idir}
+		(
+			# Setting CFLAGS avoid Openblas to set proper flags
+			unset CFLAGS
+			unset CXXFLAGS
+			run ${MYMAKE} -C ${sdir} clean
+			run ${MYMAKE} -C ${sdir} -j $MAKE_JN
+			run ${MYMAKE} -C ${sdir} install PREFIX=${idir}
+		)
 		popd
 	fi
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
-	LIBS+=" ${idir}/libopenblas.a -lm -lpthreads"
+	LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
 fi
 
 if [ x${tensor}x != xx ]; then
