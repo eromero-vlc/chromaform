@@ -517,11 +517,9 @@ if [ x${quda}x != xx ]; then
 fi
 if [ x${qphix}x != xx ]; then
 	qphix_src="qphix"
-	[ $use_next == yes ] && qphix_src="qphix2"
 fi
 if [ x${mgproto}x != xx ]; then
 	mgproto_src="mgproto"
-	[ $use_next == yes ] && mgproto_src="mgproto2"
 fi
 if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
@@ -618,9 +616,7 @@ qmp              https://github.com/usqcd-software/qmp           devel
 chroma           https://github.com/JeffersonLab/chroma          devel
 chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
 qphix            https://github.com/JeffersonLab/qphix           devel
-qphix2           https://github.com/eromero-vlc/qphix            eloy/disco
-mgproto          https://github.com/eromero-vlc/mg_proto   devel
-mgproto2         https://github.com/eromero-vlc/mg_proto         eloy/disco
+mgproto          https://github.com/JeffersonLab/mg_proto        devel
 harom            https://github.com/JeffersonLab/harom           devel
 hadron           https://github.com/JeffersonLab/hadron          devel
 tensor           https://github.com/JeffersonLab/tensor          master
