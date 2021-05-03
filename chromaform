@@ -614,7 +614,7 @@ qdp-jit          https://github.com/JeffersonLab/qdp-jit         devel
 qdp-jit-sb       https://github.com/eromero-vlc/qdp-jit          eloy/superb
 qmp              https://github.com/usqcd-software/qmp           devel
 chroma           https://github.com/JeffersonLab/chroma          devel
-chroma2          https://github.com/JeffersonLab/chroma          eloy/superb-mine
+chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
 qphix            https://github.com/JeffersonLab/qphix           devel
 mgproto          https://github.com/JeffersonLab/mg_proto        devel
 harom            https://github.com/JeffersonLab/harom           devel
