@@ -258,7 +258,10 @@ run() {
 	echo "$>" "$@"
 	"$@"
 	last_status=$?
-	[ $last_status -eq 0 ] || exit $last_status
+	if [ $last_status -ne 0 ]; then
+		echo "$> last command failed with exit status $last_status"
+		exit $last_status
+	fi
 	return 0
 }
 
@@ -509,7 +512,7 @@ fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
 	[ $use_jit == yes ] && qdp_src="qdp-jit"
-	[ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
+	# [ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -875,7 +878,7 @@ if [ x${qdp}x != xx ]; then
 	sdir="${srcdir}/${qdp_src}"
 	[ ${use_float} == yes ] && qdp_prec="single"
 	if [ $do_cleaning == nop -a $use_jit == yes ]; then
-		qdp_extra=" --enable-llvm11 --enable-dml-output-buffering --with-cuda=${CUDADIR}"
+		qdp_extra=" --enable-llvm11 --enable-dml-output-buffering --with-cuda=${CUDADIR} --enable-thrust-alignment"
 		run rm -rf ${tmp}/h
 		run mkdir -p ${tmp}/h
 		run cp ${CUDADIR}/nvvm/libdevice/libdevice*bc ${tmp}/h/libdevice.bc
@@ -926,7 +929,6 @@ if [ x${quda}x != xx ]; then
 		# Fix minor issues
 		run rm -rf $sdir/include/externals/cub
 		[ x${cub}x != xx ] && run ln -s ${srcdir}/${cub_src}/cub $sdir/include/externals/cub
-		run sed -i -e 's/#ifdef USE_QDPJIT/#if 0/g' $sdir/lib/malloc.cpp
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -1047,7 +1049,7 @@ if [ x${superbblas}x != xx ]; then
 			[ x${thrust}x != xx ] && sb_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_extra"
 		fi
-		run $MYMAKE -C ${bdir} $make_action BUILDDIR=${idir}
+		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir}
 	fi
 fi
 
