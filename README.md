@@ -202,4 +202,10 @@ module load OpenMPI/4.1.0rc1
 module load CUDA/11.0
 module load CMake/3.18.0
 ./chromaform --mg --jit --next chroma SM=sm_80 FC=gfortran
+
+# At Summit (other versions of cuda & gcc may also work)
+module load cuda/10.2.89
+module load gcc/7.4.0
+module load cmake
+./chromaform --mg --jit --next chroma SM=sm_70 FC=gfortran MAKE_JN=10
 ```
