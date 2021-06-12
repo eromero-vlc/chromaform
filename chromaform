@@ -321,6 +321,8 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
 			;;
 		esac
+	elif grep -q "cpu.*:.*POWER" /proc/cpuinfo ; then
+		echo Detected POWER architecture, no specific architecture flags set
 	else
 		case "`detect_compiler`" in
 		icc)
