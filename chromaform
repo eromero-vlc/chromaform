@@ -467,7 +467,9 @@ if [ $use_jit == nop ]; then
 	[ $use_next == yes -a x${mgproto}x != xx ] && primme="${primme:-update}"
 else
 	[ $use_mg == yes -a x${chroma}x != xx ] && quda="${quda:-update}"
+	[ $use_mg == yes -a $use_next == yes ] && mugiq="${mugiq:-update}"
 fi
+[ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ $use_next == yes -a x${chroma}x != xx ] && superbblas="${superbblas:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
 [ x${qphix}${quda}x != xx ] && eigen="${eigen:-update}"
@@ -498,7 +500,7 @@ if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	exit 1
 fi
 
-[ x${llvm}${qphix}${mgproto}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
+[ x${llvm}${qphix}${mgproto}${quda}${mugiq}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
 
 # Download
 
@@ -516,7 +518,10 @@ if [ x${qdp}x != xx ]; then
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
-	# [ $use_next == yes ] && quda_src="quda2"
+	[ $use_next == yes ] && quda_src="quda-mugiq"
+fi
+if [ x${mugiq}x != xx ]; then
+	mugiq_src="mugiq"
 fi
 if [ x${qphix}x != xx ]; then
 	qphix_src="qphix"
@@ -600,6 +605,7 @@ $qdp          $qdp_src
 $qphix        $qphix_src
 $mgproto      $mgproto_src
 $superbblas   $superbblas_src
+$mugiq        $mugiq_src
 $quda         $quda_src
 $chroma       $chroma_src
 $laplace_eigs $laplace_eigs_src
@@ -614,7 +620,6 @@ do
         cat << EOF | while read name repo branch
 qdpxx            https://github.com/usqcd-software/qdpxx         devel
 qdp-jit          https://github.com/JeffersonLab/qdp-jit         devel
-qdp-jit-sb       https://github.com/eromero-vlc/qdp-jit          eloy/superb
 qmp              https://github.com/usqcd-software/qmp           devel
 chroma           https://github.com/JeffersonLab/chroma          devel
 chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
@@ -635,7 +640,8 @@ laplace_eigs     https://github.com/JeffersonLab/laplace_eigs    devel
 primme           https://github.com/primme/primme                master
 superbblas       https://github.com/eromero-vlc/superbblas       master
 quda             https://github.com/lattice/quda                 v1.0.0
-mugiq            https://github.com/ckallidonis/mugiq            master
+mugiq            https://github.com/eromero-vlc/mugiq            master
+#mugiq            https://github.com/ckallidonis/mugiq            master
 quda-mugiq       https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen            https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
 cmake            https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
@@ -929,6 +935,8 @@ if [ x${quda}x != xx ]; then
 		# Fix minor issues
 		run rm -rf $sdir/include/externals/cub
 		[ x${cub}x != xx ] && run ln -s ${srcdir}/${cub_src}/cub $sdir/include/externals/cub
+		build_type="DEVEL"
+		[ $use_opt == debug ] && build_type="DEBUG"
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -964,13 +972,49 @@ if [ x${quda}x != xx ]; then
 			-DQUDA_DOWNLOAD_EIGEN=NO \
 			-DEIGEN_INCLUDE_DIR=${srcdir}/${eigen_src} \
 			-DCMAKE_INSTALL_PREFIX=${idir} \
-			-DCMAKE_BUILD_TYPE=DEVEL \
+			-DCMAKE_BUILD_TYPE=$build_type \
 			-DCMAKE_CXX_COMPILER=${CXX} \
 			-DCMAKE_C_COMPILER=${CC} \
 			-DCMAKE_LINKER=${CXX} \
 			-DQUDA_BUILD_SHAREDLIB=NO \
 			-DQUDA_BUILD_ALL_TESTS=OFF \
 			-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
+			${sdir}
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${mugiq}x != xx ]; then
+	mugiq_install="${mugiq_src}-${quda_install}"
+	sdir="${srcdir}/${mugiq_src}"
+	bdir="${builddir}/${mugiq_install}"
+	idir="${installdir}/${mugiq_install}"
+	info "Doing ${mugiq} mugiq; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${mugiq} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${mugiq} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		cmake  \
+			-DMUGIQ_GPU_ARCH=$SM \
+			-DMUGIQ_QUDA=ON \
+			-DMUGIQ_QUDA_SOURCE=${srcdir}/${quda_src} \
+			-DMUGIQ_QUDA_HOME=${installdir}/${quda_install} \
+			-DMUGIQ_MAGMA=OFF       \
+			-DCMAKE_COMMS_TYPE=QMP \
+			-DMUGIQ_QMP_HOME=${installdir}/${qmp_install} \
+			-DMUGIQ_QIO=ON \
+			-DMUGIQ_QIO_HOME=${installdir}/${qdp_install} \
+			-DMUGIQ_LIME_HOME=${installdir}/${qdp_install} \
+			-DCMAKE_INSTALL_PREFIX=${idir} \
+			-DCMAKE_BUILD_TYPE=DEVEL \
+			-DCMAKE_CXX_COMPILER=${CXX} \
+			-DCMAKE_C_COMPILER=${CC} \
+			-DCMAKE_LINKER=${CXX} \
+			-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
+			-DMUGIQ_BUILD_ALL_TESTS=OFF \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -1126,6 +1170,7 @@ if [ x${chroma}x != xx ]; then
 				chroma_extra="\
 				        --enable-quda-deviface \
 				        --with-quda=${installdir}/${quda_install}"
+				[ $use_next == yes ] && chroma_extra+=" --with-mugiq=${installdir}/${mugiq_install}"
 			fi
 		fi
 		[ $use_jit == nop ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
