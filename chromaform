@@ -469,7 +469,7 @@ if [ $use_jit == nop ]; then
 	[ $use_next == yes -a x${mgproto}x != xx ] && primme="${primme:-update}"
 else
 	[ $use_mg == yes -a x${chroma}x != xx ] && quda="${quda:-update}"
-	[ $use_mg == yes -a $use_next == yes ] && mugiq="${mugiq:-update}"
+	#[ $use_mg == yes -a $use_next == yes ] && mugiq="${mugiq:-update}"
 fi
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ $use_next == yes -a x${chroma}x != xx ] && superbblas="${superbblas:-update}"
@@ -520,7 +520,7 @@ if [ x${qdp}x != xx ]; then
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
-	[ $use_next == yes ] && quda_src="quda-mugiq"
+	#[ $use_next == yes ] && quda_src="quda-mugiq"
 fi
 if [ x${mugiq}x != xx ]; then
 	mugiq_src="mugiq"
