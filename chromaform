@@ -363,6 +363,8 @@ if [ ${use_autoflags} == yes ]; then
 		;;
 	esac
 	CXXFLAGS+=" -std=$use_std"
+	# Old versions of icc need this
+	CFLAGS+=" -std=c99"
 fi
 
 # If the user gives BLAS options LDFLAGS or LIBS, use them.
