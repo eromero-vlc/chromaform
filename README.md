@@ -208,4 +208,16 @@ module load cuda/10.2.89
 module load gcc/7.4.0
 module load cmake
 ./chromaform --mg --jit --next chroma SM=sm_70 FC=gfortran MAKE_JN=10
+
+# Femto
+module purge
+module load modules
+module load slurm
+module load gcc/9.1.0
+module load openmpi/3.1.4/gcc-9.1.0
+module load isa/skylake
+source /usr/local/intel-2019/mkl/bin/mklvars.sh intel64
+module load cmake
+export LD_LIBRARY_PATH=/usr/local/gcc-9.1.0/lib64:$LD_LIBRARY_PATH
+./chromaform --mg --next chroma
 ```
