@@ -244,7 +244,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	hadron) hadron="$action";;
 	harom) harom="$action";;
 	redstar) redstar="$action";;
-	*=*) export ${arg%%=*}="${arg##*=}";;
+	*=*) export ${arg%%=*}="${arg#*=}";;
 	--help|-h) echo "$hlp_msg"; exit 0;;
 	*) echo "Sorry! Unsupported option '$arg'"; echo "$hlp_msg"; exit 1;;
 	esac
@@ -256,7 +256,7 @@ done
 last_status=0 # Last command status
 run() {
 	echo "$>" "$@"
-	"$@"
+	"$@" < /dev/null
 	last_status=$?
 	if [ $last_status -ne 0 ]; then
 		echo "$> last command failed with exit status $last_status"
@@ -381,7 +381,7 @@ if [ x${use_blas}x == xx ]; then
 		if [ x${openblas}x != xx ]; then
 			use_blas="openblas"
 		elif [ x${MKLROOT}x != xx ]; then
-			use_blas="mkl"
+			use_blas="mkl-system"
 			CFLAGS+=" -I${MKLROOT}/include"
 			CXXFLAGS+=" -I${MKLROOT}/include"
 			LIBS+=" -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl"
@@ -1042,6 +1042,7 @@ if [ x${qphix}x != xx ]; then
 		pushd $bdir
 		run cmake -Disa=${qphix_isa} \
 		      -Dhost_cxx=${CXX} \
+		      -Dhost_cxxflags="" \
 		      -Drecursive_jN=${MAKE_JN} \
 		      -DCMAKE_INSTALL_PREFIX=${idir} \
 		      -DQDPXX_DIR=${installdir}/${qdp_install} \
@@ -1094,10 +1095,11 @@ if [ x${superbblas}x != xx ]; then
 		make_action="install_cpu"
 		if [ $use_jit == yes ]; then
 			make_action="install_cuda"
-			[ x${thrust}x != xx ] && sb_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
-			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_extra"
+			[ x${thrust}x != xx ] && sb_nvcc_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
+			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_nvcc_extra"
 		fi
-		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir}
+		[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
+		run $MYMAKE -C ${bdir} $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 	fi
 fi
 
@@ -1180,13 +1182,14 @@ if [ x${chroma}x != xx ]; then
 		[ $use_jit == nop ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
 		[ $use_jit == yes ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
 		[ $use_next == yes ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+		[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
 		run ${sdir}/configure \
 			--prefix=${idir} \
 			--with-qdp=${installdir}/${qdp_install} \
 			--with-qmp=${installdir}/${qmp_install} \
 		        --enable-static-packed-gauge \
 		        --enable-fused-clover-deriv-loops \
-			$chroma_extra
+			$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
