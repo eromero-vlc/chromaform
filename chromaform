@@ -623,7 +623,8 @@ EOF
 do
         cat << EOF | while read name repo branch
 qdpxx            https://github.com/usqcd-software/qdpxx         devel
-qdp-jit          https://github.com/JeffersonLab/qdp-jit         devel
+#qdp-jit          https://github.com/JeffersonLab/qdp-jit         devel    # require c++20
+qdp-jit          https://github.com/eromero-vlc/qdp-jit          no-concepts
 qmp              https://github.com/usqcd-software/qmp           devel
 chroma           https://github.com/JeffersonLab/chroma          devel
 chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
