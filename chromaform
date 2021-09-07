@@ -701,16 +701,29 @@ if [ x${cmake}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${cmake} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${cmake} == install -o ! -d ${idir} ]; then
-		run rm -rf $bdir $idir
-		run mkdir -p $bdir
-		pushd $bdir
-		if cmake --version &> /dev/null; then
-			run cmake -DCMAKE_USE_OPENSSL=OFF -DCMAKE_INSTALL_PREFIX=${idir} ${sdir}
-		else
-			run $sdir/configure --prefix=$idir
-		fi
-		run ${MYMAKE} -j $MAKE_JN install
-		popd
+		for i in 0 1; do
+			run rm -rf $bdir $idir
+			run mkdir -p $bdir
+			pushd $bdir
+			if [ $i = 0 ] ; then
+			       	if cmake --version &> /dev/null; then
+					run cmake -DCMAKE_USE_OPENSSL=OFF -DCMAKE_INSTALL_PREFIX=${idir} ${sdir}
+					( run ${MYMAKE} -j $MAKE_JN install ) && popd && break
+				else
+					run $sdir/configure --prefix=$idir
+					( run ${MYMAKE} -j $MAKE_JN install ) && popd && break
+				fi
+			else
+				# On some machines, cmake fails to compile excepting with the system compilers
+				(
+					export CFLAGS=
+					export CXXFLAGS=
+					run $sdir/configure --prefix=$idir CC=/usr/bin/gcc CXX=/usr/bin/g++
+					run ${MYMAKE} -j $MAKE_JN install
+				)
+			fi
+			popd
+		done
 	fi
 	export PATH=$idir/bin:$PATH
 fi
