@@ -7,11 +7,11 @@ read -r -d '' hlp_msg << 'EOF'
 Script for installing chroma and redstar and related software.
 
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                     \\
-           [--float] [--jit] [--mg] [--pdf] [--next]                                    \\
+           [--float] [--cuda|--hip] [--mg] [--pdf] [--next]                             \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                  \\
            [--thrust=build|--thrust=system]                                             \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]      \\
-           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no] [--std=c++11|--std=c++14] \\
+           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no] [--std=c++11|--std=c++14|--std=c++20] \\
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]   \\
            [openblas] [eigen] [qmp] [qdp] [superbblas] [primme] [mgproto] [qphix]       \\
            [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]        \\
@@ -45,8 +45,11 @@ Some packages have special optional features.
 --float
    Install the single-precision version; the double precision version is installed
    by default. Used by QDP.
---jit
+--cuda
    Install the CUDA/JIT version; the CPU version is installed by default. Used by QDP,
+   superbblas, and chroma.
+--hip
+   Install the HIP/JIT version; the CPU version is installed by default. Used by QDP,
    superbblas, and chroma.
 --mg
    Install multigrid extension of chroma; it isn't installed by default.
@@ -104,8 +107,9 @@ Control the flags use for building the packages.
    compiler, and set the QphiX isa=avx512. No AVX512 extension is set by default and
    QPhiX is built with isa=avx2.
 
---std=c++11|c++14   
-   Append the given flag to CXXFLAGS; --std=c++14 is appended by default.
+--std=c++11|c++14|c++20   
+   Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' is set;
+   Otherwise, --std=c++14 is appended by default.
 
 --autoflags=no
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
@@ -155,7 +159,7 @@ installdir="install"
 download_only="nop"
 do_cleaning="nop"
 use_float="nop"
-use_jit="nop"
+use_arch="cpu"
 use_avx512="nop"
 use_pdf="nop"
 use_next="nop"
@@ -167,7 +171,7 @@ use_cmake=""
 use_autoflags="yes"
 use_opt="opt"
 use_knl="nop"
-use_std="c++14"
+use_std=""
 action="update"
 
 # Jean Zay's frontend does not have much memory and chroma linking fails often
@@ -178,6 +182,7 @@ mymake() {
 MYMAKE="${MAKE:-mymake}"
 [ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
 [ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
+[ $use_arch == hip -a x${HIPCONFIG}x == xx ] && HIPCONFIG="$( which hipconfig )"
 SM="${SM:-sm_70}"
 tmp="`mktemp -d`"
 idir=""
@@ -198,7 +203,9 @@ for (( i=1 ; i<=n ; ++i )); do
 	--install-dir=*) installdir="${arg#--install-dir=}";;
 	--download-only) download_only="yes";;
 	--float) use_float="yes";;
-	--jit) use_jit="yes";;
+	--cpu) use_arch="cpu";;
+	--jit|--cuda) use_arch="cuda";;
+	--hip) use_arch="hip";;
 	--avx512) use_avx512="yes";;
 	--mg) use_mg="yes";;
 	--next) use_next="yes";;
@@ -223,6 +230,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--knl) use_knl="yes"; use_avx512="yes";;
 	--c++11) use_std="c++11";;
 	--c++14) use_std="c++14";;
+	--c++20) use_std="c++20";;
 	openblas) openblas="$action";;
 	cmake) cmake="$action";;
 	llvm) llvm="$action";;
@@ -281,6 +289,11 @@ CC="${CC:-mpicc}"
 CXX="${CXX:-mpicxx}"
 
 # Add extra flags
+
+if [ x${use_std}x == xx ]; then
+	use_std="c++14"
+	[ $use_arch == hip ] && use_std="c++20"
+fi
 
 detect_compiler() {
 	compiler="any"
@@ -415,6 +428,12 @@ if [ x${use_cmake}x == xx ]; then
 	fi
 fi
 
+# Add hipconfig -l into the PATH
+
+if [ $use_arch == hip ]; then
+	export PATH="$PATH:`$HIPCONFIG -l`"
+fi
+
 # Detect if there is a LLVM available in case the user does not give a clue
 
 if [ x${use_llvm}x == xx ]; then
@@ -423,7 +442,14 @@ if [ x${use_llvm}x == xx ]; then
     elif llvm-config --version &> /dev/null ; then
         llvm_ver="`llvm-config --version`"
         case $llvm_ver in
-        11*|12*) use_llvm="llvm-system";;
+        11*|12*)
+		[ $use_arch == cuda ] && use_llvm="llvm-system"
+		[ $use_arch == hip ] && use_llvm="llvm"
+		;;
+	13*)
+		[ $use_arch == cuda ] && use_llvm="llvm"
+		[ $use_arch == hip ] && use_llvm="llvm-system"
+		;;
         *) use_llvm="llvm";;
         esac
     else
@@ -438,6 +464,8 @@ fi
 
 if [ x${use_thrust}x == xx ]; then
 	if [ x${thrust}x != xx ]; then
+		use_thrust="thrust"
+	elif [ $use_arch == hip ]; then
 		use_thrust="thrust"
 	elif [ -d $CUDADIR/targets/x86_64-linux/include/cub -a -d $CUDADIR/targets/x86_64-linux/include/thrust ]; then
 		use_thrust="thrust-system"
@@ -465,7 +493,7 @@ export CC CFLAGS CXX CXXFLAGS FC LDFLAGS LIBS
 
 # Process dependencies
 
-if [ $use_jit == nop ]; then
+if [ $use_arch == cpu ]; then
 	[ $use_mg == yes -a x${chroma}x != xx ] && mgproto="${mgproto:-update}"
 	[ x${mgproto}x != xx ] && qphix="${qphix:-update}"
 	[ $use_next == yes -a x${mgproto}x != xx ] && primme="${primme:-update}"
@@ -485,7 +513,7 @@ fi
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
-[ $use_jit == yes -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
+[ $use_arch == cuda -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${tensor}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${primme}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
@@ -493,12 +521,13 @@ if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
 	exit 1
 fi
-if [ $use_jit == yes -a x${laplace_eigs}${harom}x != xx ]; then
+if [ $use_arch != cpu -a x${laplace_eigs}${harom}x != xx ]; then
 	echo "Incompatible options: --jit cannot be use while targeting laplace_eigs or harom"
 	exit 1
 fi
-[ $use_jit == yes -a x${superbblas}${quda}x != xx -a $use_thrust == thrust ] && thrust="${thrust:-update}"
-[ x${thrust}x != xx ] && cub="${cub:-update}"
+[ $use_arch != cpu -a x${superbblas}${quda}x != xx -a $use_thrust == thrust ] && thrust="${thrust:-update}"
+[ x${thrust}x != xx -a $use_arch == cuda ] && cub="${cub:-update}"
+[ x${thrust}x != xx -a $use_arch == hip ] && prim="${prim:-update}"
 if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	echo "Incompatible options: --thrust=system but also asking for compiling thrust"
 	exit 1
@@ -517,8 +546,8 @@ if [ x${qmp}x != xx ]; then
 fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
-	[ $use_jit == yes ] && qdp_src="qdp-jit"
-	# [ $use_jit == yes -a $use_next == yes ] && qdp_src="qdp-jit-sb"
+	[ $use_arch == cuda ] && qdp_src="qdp-jit-cuda"
+	[ $use_arch == hip ] && qdp_src="qdp-jit-hip"
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -544,13 +573,18 @@ if [ x${cmake}x != xx ]; then
 	cmake_src="cmake"
 fi
 if [ x${llvm}x != xx ]; then
-	llvm_src="llvm"
+	[ $use_arch == cuda ] && llvm_src="llvm-11"
+	[ $use_arch == hip ] && llvm_src="llvm-13"
 fi
 if [ x${cub}x != xx ]; then
 	cub_src="cub"
 fi
+if [ x${prim}x != xx ]; then
+	prim_src="rocPRIM"
+fi
 if [ x${thrust}x != xx ]; then
-	thrust_src="thrust"
+	[ $use_arch == cuda ] && thrust_src="thrust"
+	[ $use_arch == hip ] && thrust_src="rocThrust"
 fi
 if [ x${openblas}x != xx ]; then
 	openblas_src="openblas"
@@ -600,6 +634,7 @@ cat << EOF | while read act proj
 $cmake        $cmake_src
 $llvm         $llvm_src
 $cub          $cub_src
+$prim         $prim_src
 $thrust       $thrust_src
 $openblas     $openblas_src
 $eigen        $eigen_src
@@ -623,8 +658,8 @@ EOF
 do
         cat << EOF | while read name repo branch
 qdpxx            https://github.com/usqcd-software/qdpxx         devel
-#qdp-jit          https://github.com/JeffersonLab/qdp-jit         devel    # require c++20
-qdp-jit          https://github.com/eromero-vlc/qdp-jit          no-concepts
+qdp-jit-hip      https://github.com/JeffersonLab/qdp-jit         devel
+qdp-jit-cuda     https://github.com/eromero-vlc/qdp-jit          no-concepts
 qmp              https://github.com/usqcd-software/qmp           devel
 chroma           https://github.com/JeffersonLab/chroma          devel
 chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
@@ -650,9 +685,12 @@ mugiq            https://github.com/eromero-vlc/mugiq            master
 quda-mugiq       https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen            https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
 cmake            https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
-llvm             https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
+llvm-11          https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
+llvm-13          https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0-rc2/llvm-13.0.0rc2.src.tar.xz
 cub              https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
 thrust           https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
+rocThrust        https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
+rocPRIM          https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
 openblas         https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
 EOF
 	do
@@ -763,6 +801,15 @@ if [ x${cub}x != xx ]; then
 	info "Doing ${cub} CUB; source=$sdir"
 	if [ $do_cleaning == yes ]; then
 		[ ${cub} == clean ] && rm -rf $sdir
+	fi
+fi
+
+if [ x${prim}x != xx ]; then
+	prim_install="prim"
+	sdir="${srcdir}/${prim_src}"
+	info "Doing ${prim} prim; source=$sdir"
+	if [ $do_cleaning == yes ]; then
+		[ ${prim} == clean ] && rm -rf $sdir
 	fi
 fi
 
@@ -880,6 +927,7 @@ fi
 
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
+	[ $use_arch == hip ] && qmp_install="qmp-hip"
 	sdir="${srcdir}/${qmp_src}"
 	bdir="${builddir}/${qmp_install}"
 	idir="${installdir}/${qmp_install}"
@@ -887,21 +935,31 @@ if [ x${qmp}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${qmp} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${qmp} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		[ $use_arch != hip ] && ( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
+		if [ $use_arch != hip ]; then
+			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
+		else
+			run cmake \
+				-DCMAKE_INSTALL_PREFIX=${idir} \
+				-DBUILD_TESTING=OFF \
+				-DQMP_MPI=ON \
+				-DQMP_TIMING=OFF \
+				${sdir}
+		fi
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
+	#[ $use_arch == hip ] && CMAKE_MODULE_PATH="$CMAKE_MODULE_PATH:${idir}"
 fi
 
 if [ x${qdp}x != xx ]; then
 	qdp_prec="double"
-	sdir="${srcdir}/${qdp_src}"
 	[ ${use_float} == yes ] && qdp_prec="single"
-	if [ $do_cleaning == nop -a $use_jit == yes ]; then
+	sdir="${srcdir}/${qdp_src}"
+	if [ $do_cleaning == nop -a $use_arch == cuda ]; then
 		qdp_extra=" --enable-llvm11 --enable-dml-output-buffering --with-cuda=${CUDADIR} --enable-thrust-alignment"
 		run rm -rf ${tmp}/h
 		run mkdir -p ${tmp}/h
@@ -916,23 +974,36 @@ if [ x${qdp}x != xx ]; then
 		if [ $do_cleaning == yes ]; then
 			[ ${qdp} == clean ] && rm -rf $sdir $bdir $idir
 		elif [ ${qdp} == install -o ! -d ${idir} ]; then
-			( cd $sdir && run autoreconf -f )
+			[ $use_arch != hip ] && ( cd $sdir && run autoreconf -f )
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
 			pushd $bdir
-			run ${sdir}/configure \
-				--prefix=${idir} \
-        			--enable-Nd=$qdp_nd \
-			        --enable-parallel-arch=parscalar \
-				--enable-precision=${qdp_prec} \
-			        --enable-filedb \
-				--disable-generics \
-			        --enable-largefile \
-			        --enable-parallel-io \
-			        --enable-alignment=64 \
-				--with-qmp=${installdir}/${qmp_install} \
-			        --enable-openmp \
-				$qdp_extra
+			if [ $use_arch != hip ]; then
+				run ${sdir}/configure \
+					--prefix=${idir} \
+        				--enable-Nd=$qdp_nd \
+				        --enable-parallel-arch=parscalar \
+					--enable-precision=${qdp_prec} \
+				        --enable-filedb \
+					--disable-generics \
+				        --enable-largefile \
+				        --enable-parallel-io \
+				        --enable-alignment=64 \
+					--with-qmp=${installdir}/${qmp_install} \
+				        --enable-openmp \
+					$qdp_extra
+			else
+				run cmake \
+					-DCMAKE_INSTALL_PREFIX=${idir} \
+					-DQDP_ENABLE_BACKEND=ROCM \
+					-DQDP_BUILD_EXAMPLES=OFF \
+					-DQDP_ENABLE_LLVM13=ON \
+					-DQDP_PARALLEL_ARCH=parscalar \
+					-DQDP_ND=$qdp_nd \
+					-DQDP_PRECISION=${qdp_prec} \
+					-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
+					${sdir}
+			fi
 			run ${MYMAKE} install -j $MAKE_JN
 			popd
 		fi
@@ -1096,7 +1167,8 @@ fi
 
 if [ x${superbblas}x != xx ]; then
 	superbblas_install="superbblas-cpu"
-	[ $use_jit == yes ] && superbblas_install="superbblas-cuda"
+	[ $use_arch == cuda ] && superbblas_install="superbblas-cuda"
+	[ $use_arch == hip ] && superbblas_install="superbblas-hip"
 	sdir="${srcdir}/${superbblas_src}"
 	bdir="${builddir}/${superbblas_install}"
 	idir="${installdir}/${superbblas_install}"
@@ -1107,14 +1179,19 @@ if [ x${superbblas}x != xx ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${superbblas_src} $bdir
 		make_action="install_cpu"
-		if [ $use_jit == yes ]; then
+		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
 			[ x${thrust}x != xx ] && sb_nvcc_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_nvcc_extra"
+		elif [ $use_arch == hip ]; then
+			make_action="install_hip"
+			sb_cxx_extra="-I${srcdir}/${prim_src} -I${srcdir}/${thrust_src}"
 		fi
-		[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
+		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		run $MYMAKE -C ${bdir} $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 	fi
+	# Add clang openmp dependcy
+	[ $use_arch == hip ] && LIBS+=" -lomp"
 fi
 
 if [ x${mgproto}x != xx ]; then
@@ -1160,7 +1237,7 @@ fi
 if [ x${chroma}x != xx ]; then
 	if [ $use_mg == nop ]; then
 		chroma_install="${chroma_src}-${qdp_install}"
-	elif [ $use_jit == nop ]; then
+	elif [ $use_arch == cpu ]; then
 		chroma_install="${chroma_src}-${mgproto_install}"
 	else
 		chroma_install="${chroma_src}-${quda_install}"
@@ -1172,38 +1249,48 @@ if [ x${chroma}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${chroma} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${chroma} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		[ $use_arch != hip ] && ( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ $use_mg == yes ]; then
-			if [ $use_jit == nop ]; then
-				chroma_extra="\
-			        	--with-qphix-solver=${installdir}/${qphix_install} \
-			        	--enable-qphix-solver-arch=${qphix_isa} \
-			        	--enable-qphix-solver-soalen=4 \
-			        	--disable-qphix-solver-compress12 \
-			        	--enable-qphix-solver-inner-type=f \
-			        	--enable-qphix-solver-inner-soalen=8 \
-			        	--with-mg-proto=${installdir}/${mgproto_install}"
-			else
-				chroma_extra="\
-				        --enable-quda-deviface \
-				        --with-quda=${installdir}/${quda_install}"
-				[ $use_next == yes ] && chroma_extra+=" --with-mugiq=${installdir}/${mugiq_install}"
+		if [ $use_arch != hip ]; then
+			if [ $use_mg == yes ]; then
+				if [ $use_arch == cpu ]; then
+					chroma_extra="\
+				        	--with-qphix-solver=${installdir}/${qphix_install} \
+				        	--enable-qphix-solver-arch=${qphix_isa} \
+				        	--enable-qphix-solver-soalen=4 \
+				        	--disable-qphix-solver-compress12 \
+				        	--enable-qphix-solver-inner-type=f \
+				        	--enable-qphix-solver-inner-soalen=8 \
+				        	--with-mg-proto=${installdir}/${mgproto_install}"
+				else
+					chroma_extra="\
+					        --enable-quda-deviface \
+					        --with-quda=${installdir}/${quda_install}"
+					[ $use_next == yes ] && chroma_extra+=" --with-mugiq=${installdir}/${mugiq_install}"
+				fi
 			fi
+			[ $use_jit == cpu ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
+			[ $use_jit == cuda ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
+			[ $use_next == yes ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+			[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
+			run ${sdir}/configure \
+				--prefix=${idir} \
+				--with-qdp=${installdir}/${qdp_install} \
+				--with-qmp=${installdir}/${qmp_install} \
+			        --enable-static-packed-gauge \
+			        --enable-fused-clover-deriv-loops \
+				$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
+		else
+			LDFLAGS="$LDFLAGS $LIBS" run cmake \
+				-DCMAKE_INSTALL_PREFIX=${idir} \
+				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
+				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
+				-DChroma_ENABLE_SUPERBBLAS=ON \
+				-DSUPERBBLAS_DIR=${installdir}/${superbblas_install} \
+				${sdir}
 		fi
-		[ $use_jit == nop ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
-		[ $use_jit == yes ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
-		[ $use_next == yes ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
-		[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
-		run ${sdir}/configure \
-			--prefix=${idir} \
-			--with-qdp=${installdir}/${qdp_install} \
-			--with-qmp=${installdir}/${qmp_install} \
-		        --enable-static-packed-gauge \
-		        --enable-fused-clover-deriv-loops \
-			$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
