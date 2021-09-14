@@ -182,8 +182,8 @@ mymake() {
 MYMAKE="${MAKE:-mymake}"
 [ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
 [ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
-[ $use_arch == hip -a x${HIPCONFIG}x == xx ] && HIPCONFIG="$( which hipconfig )"
 SM="${SM:-sm_70}"
+AMDGPU_TARGETS="${AMDGPU_TARGETS:-gfx900;gfx906;gfx908}"
 tmp="`mktemp -d`"
 idir=""
 
@@ -293,6 +293,7 @@ CXX="${CXX:-mpicxx}"
 if [ x${use_std}x == xx ]; then
 	use_std="c++14"
 	[ $use_arch == hip ] && use_std="c++20"
+	[ $use_arch == cuda -a $use_next == nop ] && use_std="c++20"
 fi
 
 detect_compiler() {
@@ -431,6 +432,7 @@ fi
 # Add hipconfig -l into the PATH
 
 if [ $use_arch == hip ]; then
+	[ x${HIPCONFIG}x == xx ] && HIPCONFIG="$( which hipconfig )"
 	export PATH="$PATH:`$HIPCONFIG -l`"
 fi
 
@@ -546,8 +548,9 @@ if [ x${qmp}x != xx ]; then
 fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
-	[ $use_arch == cuda ] && qdp_src="qdp-jit-cuda"
-	[ $use_arch == hip ] && qdp_src="qdp-jit-hip"
+	[ $use_arch == cuda -a $use_next == yes ] && qdp_src="qdp-jit-no-concepts"
+	[ $use_arch == cuda -a $use_next != yes ] && qdp_src="qdp-jit"
+	[ $use_arch == hip ] && qdp_src="qdp-jit"
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -564,7 +567,7 @@ if [ x${mgproto}x != xx ]; then
 fi
 if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
-	[ $use_next == yes ] && chroma_src="chroma2"
+	[ $use_next == yes -a $use_arch != hip ] && chroma_src="chroma2"
 fi
 if [ x${primme}x != xx ]; then
 	primme_src="primme"
@@ -657,41 +660,41 @@ $redstar      $redstar_src
 EOF
 do
         cat << EOF | while read name repo branch
-qdpxx            https://github.com/usqcd-software/qdpxx         devel
-qdp-jit-hip      https://github.com/JeffersonLab/qdp-jit         devel
-qdp-jit-cuda     https://github.com/eromero-vlc/qdp-jit          no-concepts
-qmp              https://github.com/usqcd-software/qmp           devel
-chroma           https://github.com/JeffersonLab/chroma          devel
-chroma2          https://github.com/JeffersonLab/chroma          eloy/superb
-qphix            https://github.com/JeffersonLab/qphix           devel
-mgproto          https://github.com/JeffersonLab/mg_proto        devel
-harom            https://github.com/JeffersonLab/harom           devel
-hadron           https://github.com/JeffersonLab/hadron          devel
-tensor           https://github.com/JeffersonLab/tensor          master
-redstar          https://github.com/JeffersonLab/redstar         devel
-redstar2         https://github.com/JeffersonLab/redstar         eloy/hadron-node-lib
-redstar-pdf      https://github.com/JeffersonLab/redstar         devel-pdf
-adat             https://github.com/JeffersonLab/adat            devel
-adat-pdf         https://github.com/JeffersonLab/adat            devel-pdf
-colorvec         https://github.com/JeffersonLab/colorvec        devel
-colorvec-pdf     https://github.com/JeffersonLab/colorvec        devel-pdf
-colorvec2        https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
-laplace_eigs     https://github.com/JeffersonLab/laplace_eigs    devel
-primme           https://github.com/primme/primme                master
-superbblas       https://github.com/eromero-vlc/superbblas       master
-quda             https://github.com/lattice/quda                 v1.0.0
-mugiq            https://github.com/eromero-vlc/mugiq            master
-#mugiq            https://github.com/ckallidonis/mugiq            master
-quda-mugiq       https://github.com/ckallidonis/quda             CK-MGDeflate
-eigen            https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
-cmake            https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
-llvm-11          https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
-llvm-13          https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0-rc2/llvm-13.0.0rc2.src.tar.xz
-cub              https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
-thrust           https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
-rocThrust        https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
-rocPRIM          https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
-openblas         https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
+qdpxx                  https://github.com/usqcd-software/qdpxx         devel
+qdp-jit                https://github.com/JeffersonLab/qdp-jit         devel
+qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concepts
+qmp                    https://github.com/usqcd-software/qmp           devel
+chroma                 https://github.com/JeffersonLab/chroma          devel
+chroma2                https://github.com/JeffersonLab/chroma          eloy/superb
+qphix                  https://github.com/JeffersonLab/qphix           devel
+mgproto                https://github.com/JeffersonLab/mg_proto        devel
+harom                  https://github.com/JeffersonLab/harom           devel
+hadron                 https://github.com/JeffersonLab/hadron          devel
+tensor                 https://github.com/JeffersonLab/tensor          master
+redstar                https://github.com/JeffersonLab/redstar         devel
+redstar2               https://github.com/JeffersonLab/redstar         eloy/hadron-node-lib
+redstar-pdf            https://github.com/JeffersonLab/redstar         devel-pdf
+adat                   https://github.com/JeffersonLab/adat            devel
+adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
+colorvec               https://github.com/JeffersonLab/colorvec        devel
+colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
+colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
+laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    devel
+primme                 https://github.com/primme/primme                master
+superbblas             https://github.com/eromero-vlc/superbblas       master
+quda                   https://github.com/lattice/quda                 v1.0.0
+mugiq                  https://github.com/eromero-vlc/mugiq            master
+#mugiq                  https://github.com/ckallidonis/mugiq            master
+quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
+eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
+cmake                  https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
+llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
+llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0-rc2/llvm-13.0.0rc2.src.tar.xz
+cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
+thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
+rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
+rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
+openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -995,6 +998,7 @@ if [ x${qdp}x != xx ]; then
 			else
 				run cmake \
 					-DCMAKE_INSTALL_PREFIX=${idir} \
+					-DGPU_TARGETS=${AMDGPU_TARGETS} \
 					-DQDP_ENABLE_BACKEND=ROCM \
 					-DQDP_BUILD_EXAMPLES=OFF \
 					-DQDP_ENABLE_LLVM13=ON \
@@ -1186,12 +1190,14 @@ if [ x${superbblas}x != xx ]; then
 		elif [ $use_arch == hip ]; then
 			make_action="install_hip"
 			sb_cxx_extra="-I${srcdir}/${prim_src} -I${srcdir}/${thrust_src}"
+			hip_arch_flags="$( for arch in ${AMDGPU_TARGETS//;/ }; do echo -n "--offload-arch=$arch "; done )"
+			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		run $MYMAKE -C ${bdir} $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 	fi
 	# Add clang openmp dependcy
-	[ $use_arch == hip ] && LIBS+=" -lomp"
+	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -l`/../lib -lomp"
 fi
 
 if [ x${mgproto}x != xx ]; then
@@ -1283,12 +1289,21 @@ if [ x${chroma}x != xx ]; then
 			        --enable-fused-clover-deriv-loops \
 				$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 		else
-			LDFLAGS="$LDFLAGS $LIBS" run cmake \
+			case $use_blas in
+			mkl*) blas="Intel10_64lp";;
+			openblas*) blas="OpenBLAS";;
+			atlas*) blas="ATLAS";;
+			esac
+
+			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
+				-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS $LIBS" \
 				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
 				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
+				-DChroma_ENABLE_JIT_CLOVER=ON \
 				-DChroma_ENABLE_SUPERBBLAS=ON \
 				-DSUPERBBLAS_DIR=${installdir}/${superbblas_install} \
+		    		-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
 				${sdir}
 		fi
 		run ${MYMAKE} install -j $MAKE_JN
