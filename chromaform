@@ -503,8 +503,9 @@ else
 	[ $use_mg == yes -a x${chroma}x != xx ] && quda="${quda:-update}"
 	#[ $use_mg == yes -a $use_next == yes ] && mugiq="${mugiq:-update}"
 fi
+[ x${quda}x != xx -a $use_arch == hip ] && cpm="${cpm:-update}"
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
-[ $use_next == yes -a x${chroma}x != xx ] && superbblas="${superbblas:-update}"
+[ x${chroma}x != xx ] && superbblas="${superbblas:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
 [ x${qphix}${quda}x != xx ] && eigen="${eigen:-update}"
 
@@ -554,6 +555,8 @@ if [ x${qdp}x != xx ]; then
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
+	[ $use_arch == hip ] && quda_src="quda-hip"
+	cpm_src="cpm"
 	#[ $use_next == yes ] && quda_src="quda-mugiq"
 fi
 if [ x${mugiq}x != xx ]; then
@@ -649,6 +652,7 @@ $mgproto      $mgproto_src
 $superbblas   $superbblas_src
 $mugiq        $mugiq_src
 $quda         $quda_src
+$cpm          $cpm_src
 $chroma       $chroma_src
 $laplace_eigs $laplace_eigs_src
 $adat         $adat_src
@@ -683,6 +687,7 @@ laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    devel
 primme                 https://github.com/primme/primme                master
 superbblas             https://github.com/eromero-vlc/superbblas       master
 quda                   https://github.com/lattice/quda                 v1.0.0
+quda-hip               https://github.com/lattice/quda                 feature/hip-compile-fixes
 mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
@@ -695,6 +700,7 @@ thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
 openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
+cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -713,6 +719,7 @@ EOF
 		*git*) ( GIT_ASKPASS=w run git clone --recursive $repo -b $branch $srcdir/$proj ) || GIT_ASKPASS=w run git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} -b $branch $srcdir/$proj;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
+		[ $proj == cpm ] && ln -s $srcdir/$proj/cmake/CPM.cmake $srcdir/$proj/CPM_0.32.1.cmake
 	done || exit 1
 done || exit 1
 
@@ -1025,15 +1032,46 @@ if [ x${quda}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${quda} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${quda} == install -o ! -d ${idir} ]; then
-		# Fix minor issues
-		run rm -rf $sdir/include/externals/cub
-		[ x${cub}x != xx ] && run ln -s ${srcdir}/${cub_src}/cub $sdir/include/externals/cub
+		if [ $use_arch == cuda ]; then
+			# Fix minor issues
+			run rm -rf $sdir/include/externals/cub
+			[ x${cub}x != xx ] && run ln -s ${srcdir}/${cub_src}/cub $sdir/include/externals/cub
+		fi
 		build_type="DEVEL"
 		[ $use_opt == debug ] && build_type="DEBUG"
+		if [ $use_arch != hip ]; then
+			quda_extra_args="\
+				-DQUDA_TARGET_TYPE=CUDA \
+				-DQUDA_GPU_ARCH=$SM \
+				-DQUDA_QDPJITHOME=${installdir}/${qdp_install} \
+				-DQUDA_QMPHOME=${installdir}/${qmp_install} \
+				-DQUDA_QIOHOME=${installdir}/${qdp_install} \
+				-DQUDA_LIMEHOME=${installdir}/${qdp_install} \
+				-DCMAKE_C_COMPILER=${CC} \
+				-DCMAKE_CXX_COMPILER=${CXX} \
+				-DCMAKE_LINKER=${CXX} \
+				-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
+			"
+		else
+			quda_extra_args="\
+				-DQUDA_TARGET_TYPE=HIP \
+				-DGPU_TARGETS=$AMDGPU_TARGETS \
+				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
+				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
+				-DQIO_DIR=${installdir}/${qdp_install}/lib/cmake/QIO \
+				-DCLime_DIR=${installdir}/${qdp_install}/lib/cmake/CLime \
+				-DMPI_C_COMPILER=${CC} \
+				-DMPI_CXX_COMPILER=${CXX} \
+				-DCMAKE_C_COMPILER=hipcc \
+				-DCMAKE_CXX_COMPILER=hipcc \
+			"
+			# Avoid compiling issue in QUDA
+			quda_extra_args+=" -DQUDA_OPENMP=OFF"
+		fi
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run cmake  \
+		CPM_SOURCE_CACHE=$srcdir CXXFLAGS="${CXXFLAGS//-std=c++??/}" run cmake  \
 			-DQUDA_DIRAC_CLOVER=ON \
 			-DQUDA_DIRAC_DOMAIN_WALL=OFF \
 			-DQUDA_DIRAC_NDEG_TWISTED_MASS=OFF \
@@ -1046,32 +1084,24 @@ if [ x${quda}x != xx ]; then
 			-DQUDA_FORCE_HISQ=OFF \
 			-DQUDA_GAUGE_ALG=OFF \
 			-DQUDA_GAUGE_TOOLS=OFF \
-			-DQUDA_GPU_ARCH=$SM \
 			-DQUDA_INTERFACE_QDPJIT=ON \
 			-DQUDA_QDPJIT=ON \
-			-DQUDA_QDPJITHOME=${installdir}/${qdp_install} \
 			-DQUDA_INTERFACE_MILC=OFF \
 			-DQUDA_INTERFACE_CPS=OFF \
 			-DQUDA_INTERFACE_QDP=ON \
 			-DQUDA_INTERFACE_TIFR=OFF \
 			-DQUDA_MAGMA=OFF	\
 			-DQUDA_QMP=ON \
-			-DQUDA_QMPHOME=${installdir}/${qmp_install} \
 			-DQUDA_QIO=ON \
-			-DQUDA_QIOHOME=${installdir}/${qdp_install} \
-			-DQUDA_LIMEHOME=${installdir}/${qdp_install} \
 			-DQUDA_MULTIGRID=ON \
 			-DQUDA_MAX_MULTI_BLAS_N=9 \
 			-DQUDA_DOWNLOAD_EIGEN=NO \
 			-DEIGEN_INCLUDE_DIR=${srcdir}/${eigen_src} \
 			-DCMAKE_INSTALL_PREFIX=${idir} \
 			-DCMAKE_BUILD_TYPE=$build_type \
-			-DCMAKE_CXX_COMPILER=${CXX} \
-			-DCMAKE_C_COMPILER=${CC} \
-			-DCMAKE_LINKER=${CXX} \
 			-DQUDA_BUILD_SHAREDLIB=NO \
 			-DQUDA_BUILD_ALL_TESTS=OFF \
-			-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
+			$quda_extra_args \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -1194,7 +1224,7 @@ if [ x${superbblas}x != xx ]; then
 			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
-		run $MYMAKE -C ${bdir} $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
+		run $MYMAKE -C ${bdir} -j $MAKE_JN  $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 	fi
 	# Add clang openmp dependcy
 	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -l`/../lib -lomp"
@@ -1279,12 +1309,12 @@ if [ x${chroma}x != xx ]; then
 			fi
 			[ $use_jit == cpu ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
 			[ $use_jit == cuda ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
-			[ $use_next == yes ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 			[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
 			run ${sdir}/configure \
 				--prefix=${idir} \
 				--with-qdp=${installdir}/${qdp_install} \
 				--with-qmp=${installdir}/${qmp_install} \
+				--with-superbblas=${installdir}/${superbblas_install} \
 			        --enable-static-packed-gauge \
 			        --enable-fused-clover-deriv-loops \
 				$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
@@ -1295,6 +1325,12 @@ if [ x${chroma}x != xx ]; then
 			atlas*) blas="ATLAS";;
 			esac
 
+			chroma_extra=""
+			[ $use_arch == hip -a $use_mg == yes ] && chroma_extra="\
+				-DChroma_ENABLE_QUDA=ON \
+				-DQUDA_DIR=${installdir}/${quda_install}/lib/cmake/QUDA \
+			"
+
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
 				-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS $LIBS" \
@@ -1304,6 +1340,7 @@ if [ x${chroma}x != xx ]; then
 				-DChroma_ENABLE_SUPERBBLAS=ON \
 				-DSUPERBBLAS_DIR=${installdir}/${superbblas_install} \
 		    		-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
+				$chroma_extra \
 				${sdir}
 		fi
 		run ${MYMAKE} install -j $MAKE_JN
