@@ -444,15 +444,8 @@ if [ x${use_llvm}x == xx ]; then
     elif llvm-config --version &> /dev/null ; then
         llvm_ver="`llvm-config --version`"
         case $llvm_ver in
-        11*|12*)
-		[ $use_arch == cuda ] && use_llvm="llvm-system"
-		[ $use_arch == hip ] && use_llvm="llvm"
-		;;
-	13*)
-		[ $use_arch == cuda ] && use_llvm="llvm"
-		[ $use_arch == hip ] && use_llvm="llvm-system"
-		;;
-        *) use_llvm="llvm";;
+	12*|13*) use_llvm="llvm-system" ;;
+        *)       use_llvm="llvm";;
         esac
     else
         use_llvm="llvm"
@@ -506,6 +499,7 @@ fi
 [ x${quda}x != xx -a $use_arch == hip ] && cpm="${cpm:-update}"
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ x${chroma}x != xx ] && superbblas="${superbblas:-update}"
+[ x${mgproto}x != xx ] && primme="${primme:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
 [ x${qphix}${quda}x != xx ] && eigen="${eigen:-update}"
 
@@ -792,7 +786,7 @@ if [ x${llvm}x != xx ]; then
 		      -DLLVM_ENABLE_TERMINFO="OFF" \
 		      -DCMAKE_BUILD_TYPE=Release \
 		      -DCMAKE_INSTALL_PREFIX=${idir} \
-		      -DLLVM_TARGETS_TO_BUILD="NVPTX;X86;XCore" \
+		      -DLLVM_TARGETS_TO_BUILD="NVPTX;X86" \
 		      -DLLVM_ENABLE_ZLIB="OFF" \
 		      -DBUILD_SHARED_LIBS="OFF" \
 		      -DLLVM_ENABLE_RTTI="ON"  \
@@ -949,7 +943,7 @@ if [ x${qmp}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ $use_arch != hip ]; then
+		if [ $use_arch == cpu ]; then
 			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
 		else
 			run cmake \
@@ -962,7 +956,6 @@ if [ x${qmp}x != xx ]; then
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
-	#[ $use_arch == hip ] && CMAKE_MODULE_PATH="$CMAKE_MODULE_PATH:${idir}"
 fi
 
 if [ x${qdp}x != xx ]; then
@@ -970,12 +963,26 @@ if [ x${qdp}x != xx ]; then
 	[ ${use_float} == yes ] && qdp_prec="single"
 	sdir="${srcdir}/${qdp_src}"
 	if [ $do_cleaning == nop -a $use_arch == cuda ]; then
-		qdp_extra=" --enable-llvm11 --enable-dml-output-buffering --with-cuda=${CUDADIR} --enable-thrust-alignment"
 		run rm -rf ${tmp}/h
 		run mkdir -p ${tmp}/h
 		run cp ${CUDADIR}/nvvm/libdevice/libdevice*bc ${tmp}/h/libdevice.bc
 		( cd $sdir && run bash ./pack_libdevice.sh ${tmp}/h )
 	fi
+	qdp_extra=""
+	case $use_arch in
+	cuda)
+		qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ENABLE_THRUST_ALIGNMENT=ON"
+		;;
+	hip)
+		qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS}"
+		;;
+	esac
+	if [ $use_arch != cpu ]; then
+        	case $llvm_ver in
+		13*) qdp_extra+=" -DQDP_ENABLE_LLVM13=ON" 
+        	esac
+	fi
+
 	for qdp_nd in 3 4 ; do
 		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
 		bdir="${builddir}/${qdp_install}"
@@ -988,7 +995,7 @@ if [ x${qdp}x != xx ]; then
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
 			pushd $bdir
-			if [ $use_arch != hip ]; then
+			if [ $use_arch == cpu ]; then
 				run ${sdir}/configure \
 					--prefix=${idir} \
         				--enable-Nd=$qdp_nd \
@@ -996,23 +1003,19 @@ if [ x${qdp}x != xx ]; then
 					--enable-precision=${qdp_prec} \
 				        --enable-filedb \
 					--disable-generics \
-				        --enable-largefile \
 				        --enable-parallel-io \
 				        --enable-alignment=64 \
 					--with-qmp=${installdir}/${qmp_install} \
-				        --enable-openmp \
-					$qdp_extra
+				        --enable-openmp
 			else
 				run cmake \
 					-DCMAKE_INSTALL_PREFIX=${idir} \
-					-DGPU_TARGETS=${AMDGPU_TARGETS} \
-					-DQDP_ENABLE_BACKEND=ROCM \
 					-DQDP_BUILD_EXAMPLES=OFF \
-					-DQDP_ENABLE_LLVM13=ON \
 					-DQDP_PARALLEL_ARCH=parscalar \
 					-DQDP_ND=$qdp_nd \
 					-DQDP_PRECISION=${qdp_prec} \
 					-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
+					$qdp_extra \
 					${sdir}
 			fi
 			run ${MYMAKE} install -j $MAKE_JN
@@ -1247,7 +1250,7 @@ if [ x${mgproto}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		[ $use_next == yes ] && mgproto_extra="-DMG_USE_PRIMME=ON -DPRIMME_HOME=${installdir}/${primme_install}"
+		mgproto_extra="-DMG_USE_PRIMME=ON -DPRIMME_HOME=${installdir}/${primme_install}"
 		cmake \
 		    -DMG_USE_KOKKOS=FALSE \
 		    -DMG_USE_QPHIX=TRUE \
@@ -1289,26 +1292,17 @@ if [ x${chroma}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ $use_arch != hip ]; then
+		if [ $use_arch == cpu ]; then
 			if [ $use_mg == yes ]; then
-				if [ $use_arch == cpu ]; then
-					chroma_extra="\
-				        	--with-qphix-solver=${installdir}/${qphix_install} \
-				        	--enable-qphix-solver-arch=${qphix_isa} \
-				        	--enable-qphix-solver-soalen=4 \
-				        	--disable-qphix-solver-compress12 \
-				        	--enable-qphix-solver-inner-type=f \
-				        	--enable-qphix-solver-inner-soalen=8 \
-				        	--with-mg-proto=${installdir}/${mgproto_install}"
-				else
-					chroma_extra="\
-					        --enable-quda-deviface \
-					        --with-quda=${installdir}/${quda_install}"
-					[ $use_next == yes ] && chroma_extra+=" --with-mugiq=${installdir}/${mugiq_install}"
-				fi
+				chroma_extra="\
+			        	--with-qphix-solver=${installdir}/${qphix_install} \
+			        	--enable-qphix-solver-arch=${qphix_isa} \
+			        	--enable-qphix-solver-soalen=4 \
+			        	--disable-qphix-solver-compress12 \
+			        	--enable-qphix-solver-inner-type=f \
+			        	--enable-qphix-solver-inner-soalen=8 \
+			        	--with-mg-proto=${installdir}/${mgproto_install}"
 			fi
-			[ $use_jit == cpu ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
-			[ $use_jit == cuda ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
 			[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
 			run ${sdir}/configure \
 				--prefix=${idir} \
@@ -1317,6 +1311,7 @@ if [ x${chroma}x != xx ]; then
 				--with-superbblas=${installdir}/${superbblas_install} \
 			        --enable-static-packed-gauge \
 			        --enable-fused-clover-deriv-loops \
+				--enable-lapack=lapack --enable-opt-eigcg \
 				$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 		else
 			case $use_blas in
@@ -1329,7 +1324,7 @@ if [ x${chroma}x != xx ]; then
 			[ $use_arch == hip -a $use_mg == yes ] && chroma_extra="\
 				-DChroma_ENABLE_QUDA=ON \
 				-DQUDA_DIR=${installdir}/${quda_install}/lib/cmake/QUDA \
-			"
+				"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
