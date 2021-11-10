@@ -1379,7 +1379,7 @@ if [ x${redstar}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		[ $use_next == yes ] && redstar_extra="--with-colorvec=${installdir}/${colorvec_install}"
-		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}  $redstar_extra
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}  $redstar_extra LIBS="$LIBS -lgmpxx -lgmp"
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
