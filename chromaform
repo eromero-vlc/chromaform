@@ -573,8 +573,8 @@ if [ x${cmake}x != xx ]; then
 	cmake_src="cmake"
 fi
 if [ x${llvm}x != xx ]; then
-	[ $use_arch == cuda ] && llvm_src="llvm-11"
-	[ $use_arch == hip ] && llvm_src="llvm-13"
+	llvm_src="llvm-13"
+	[ $use_next == yes ] && llvm_src="llvm-11"
 fi
 if [ x${cub}x != xx ]; then
 	cub_src="cub"
@@ -677,7 +677,7 @@ adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
-laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    devel
+laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    master
 primme                 https://github.com/primme/primme                master
 superbblas             https://github.com/eromero-vlc/superbblas       master
 quda                   https://github.com/lattice/quda                 v1.0.0
@@ -866,7 +866,7 @@ if [ x${tensor}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir}
+		run ${sdir}/configure --prefix=${idir} --without-arpack
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
@@ -931,7 +931,7 @@ fi
 
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
-	[ $use_arch == hip ] && qmp_install="qmp-hip"
+	[ $use_arch != cpu ] && qmp_install="qmp-cmake"
 	sdir="${srcdir}/${qmp_src}"
 	bdir="${builddir}/${qmp_install}"
 	idir="${installdir}/${qmp_install}"
@@ -978,6 +978,7 @@ if [ x${qdp}x != xx ]; then
 		;;
 	esac
 	if [ $use_arch != cpu ]; then
+        	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
 		13*) qdp_extra+=" -DQDP_ENABLE_LLVM13=ON" 
         	esac
@@ -1227,6 +1228,7 @@ if [ x${superbblas}x != xx ]; then
 			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
+		[ $use_arch == cuda -a $use_next == nop ] && sb_cxx_extra+=" -std=c++14"
 		run $MYMAKE -C ${bdir} -j $MAKE_JN  $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 	fi
 	# Add clang openmp dependcy
@@ -1344,7 +1346,7 @@ if [ x${chroma}x != xx ]; then
 fi
 
 if [ x${harom}x != xx ]; then
-	harom_install="harom"
+	harom_install="harom-${qdp3d_install}"
 	sdir="${srcdir}/${harom_src}"
 	bdir="${builddir}/${harom_install}"
 	idir="${installdir}/${harom_install}"
