@@ -683,7 +683,7 @@ adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
-laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    devel
+laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                master
 superbblas             https://github.com/eromero-vlc/superbblas       master
 quda                   https://github.com/lattice/quda                 v1.0.0
@@ -1307,8 +1307,8 @@ if [ x${chroma}x != xx ]; then
 					[ $use_next == yes ] && chroma_extra+=" --with-mugiq=${installdir}/${mugiq_install}"
 				fi
 			fi
-			[ $use_jit == cpu ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
-			[ $use_jit == cuda ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
+			[ $use_arch == cpu ] && chroma_extra+=" --enable-lapack=lapack --enable-opt-eigcg"
+			[ $use_arch == cuda ] && chroma_extra+=" --enable-jit-clover --with-cuda=${CUDADIR}"
 			[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
 			run ${sdir}/configure \
 				--prefix=${idir} \
@@ -1389,7 +1389,7 @@ if [ x${redstar}x != xx ]; then
 fi
 
 if [ x${laplace_eigs}x != xx ]; then
-	laplace_eigs_install="laplace_eigs"
+	laplace_eigs_install="laplace_eigs-${qdp3d_install}"
 	sdir="${srcdir}/${laplace_eigs_src}"
 	bdir="${builddir}/${laplace_eigs_install}"
 	idir="${installdir}/${laplace_eigs_install}"
@@ -1399,9 +1399,9 @@ if [ x${laplace_eigs}x != xx ]; then
 	elif [ ${laplace_eigs} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p ${idir}
-		run cp -r $idir $bdir
+		run cp -r $sdir $bdir
 		pushd $bdir
-		run ${MYMAKE} ARCH="QMP" PRIMME_ENV=${installdir}/${primme_install} QDP_CONFIG_ND3_ENV=${installdir}/${qdp3d_install} QDP_CONFIG_ND4_ENV=${installdir}/${qdp_install} 
+		run ${MYMAKE} ARCH="QMP" PRIMME_ENV=${installdir}/${primme_install} QDP_CONFIG_ND3_ENV=${installdir}/${qdp3d_install}/bin/qdp++-config QDP_CONFIG_ND4_ENV=${installdir}/${qdp_install}/bin/qdp++-config
 		run cp laplace_eigs vecs_combine_4d vecs_combine_3d ${idir}
 		popd
 	fi
