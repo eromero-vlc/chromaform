@@ -6,15 +6,16 @@
 read -r -d '' hlp_msg << 'EOF'
 Script for installing chroma and redstar and related software.
 
-chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                     \\
-           [--float] [--cuda|--hip] [--mg] [--pdf] [--next]                             \\
-           [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                  \\
-           [--thrust=build|--thrust=system]                                             \\
-           [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]      \\
-           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no] [--std=c++11|--std=c++14|--std=c++20] \\
-           [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]   \\
-           [openblas] [eigen] [qmp] [qdp] [superbblas] [primme] [mgproto] [qphix]       \\
-           [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]        \\
+chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                       \\
+           [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
+           [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
+           [--thrust=build|--thrust=system]                                               \\
+           [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
+           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no]                             \\
+           [--std=c++11|--std=c++14|--std=c++20]                                          \\
+           [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
+           [openblas] [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] \\
+           [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]          \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
 
 Examples:
@@ -24,7 +25,7 @@ chromaform --mg chroma
 # Install chroma with mg_proto/QPhiX with AVX512 support
 chromaform --mg --avx512 chroma
 # Install chroma with QUDA for arch=sm_70
-chromaform --mg --jit chroma SM=sm_70
+chromaform --mg --cuda chroma SM=sm_70
 # Install redstar and harom
 chromaform redstar harom
 
@@ -53,6 +54,8 @@ Some packages have special optional features.
    superbblas, and chroma.
 --mg
    Install multigrid extension of chroma; it isn't installed by default.
+--superb
+   Install the superbblas extensions of chroma; it isn't installed by default.
 --pdf
    Install the devel-pdf branches of adat, colorvec and redstar; the devel branch is
    installed by default.
@@ -108,8 +111,8 @@ Control the flags use for building the packages.
    QPhiX is built with isa=avx2.
 
 --std=c++11|c++14|c++20   
-   Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' is set;
-   Otherwise, --std=c++14 is appended by default.
+   Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
+   is set; otherwise, --std=c++14 is appended by default.
 
 --autoflags=no
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
@@ -163,6 +166,7 @@ use_arch="cpu"
 use_avx512="nop"
 use_pdf="nop"
 use_next="nop"
+use_superb="nop"
 use_mg="nop"
 use_llvm=""
 use_thrust=""
@@ -206,6 +210,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--cpu) use_arch="cpu";;
 	--jit|--cuda) use_arch="cuda";;
 	--hip) use_arch="hip";;
+	--superb) use_superb="yes";;
 	--avx512) use_avx512="yes";;
 	--mg) use_mg="yes";;
 	--next) use_next="yes";;
@@ -241,6 +246,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	superbblas) superbblas="$action";;
 	qphix) qphix="$action";;
 	primme) primme="$action";;
+	magma) magma="$action";;
 	mgproto) mgproto="$action";;
 	quda) quda="$action";;
 	mugiq) mugiq="$action";;
@@ -425,7 +431,7 @@ if [ x${use_cmake}x == xx ]; then
 		cmake_version="`cmake --version 2>&1  | grep "^cmake version" | tr . ' '`"
 		ver_maj="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_maj; done`"
 		ver_minor="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_minor; done`"
-		[ $(( ver_maj >= 3 && ver_minor >= 13 )) -eq 1 ] && use_cmake="cmake-system"
+		[ $(( ver_maj >= 3 && ver_minor >= 17 )) -eq 1 ] && use_cmake="cmake-system"
 	fi
 fi
 
@@ -498,7 +504,8 @@ else
 fi
 [ x${quda}x != xx -a $use_arch == hip ] && cpm="${cpm:-update}"
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
-[ x${chroma}x != xx ] && superbblas="${superbblas:-update}"
+[ x${chroma}x != xx -a $use_superb == yes ] && superbblas="${superbblas:-update}"
+[ x${chroma}x != xx -a x${superbblas}x != xx ] && primme="${primme:-update}"
 [ x${mgproto}x != xx ] && primme="${primme:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
 [ x${qphix}${quda}x != xx ] && eigen="${eigen:-update}"
@@ -513,13 +520,14 @@ fi
 [ $use_arch == cuda -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${tensor}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${primme}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
+[ x${primme}x != xx -a $use_arch == cuda ] && magma="${magma:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
 	exit 1
 fi
 if [ $use_arch != cpu -a x${laplace_eigs}${harom}x != xx ]; then
-	echo "Incompatible options: --jit cannot be use while targeting laplace_eigs or harom"
+	echo "Incompatible options: --cuda or --hip cannot be use while targeting laplace_eigs or harom"
 	exit 1
 fi
 [ $use_arch != cpu -a x${superbblas}${quda}x != xx -a $use_thrust == thrust ] && thrust="${thrust:-update}"
@@ -568,6 +576,9 @@ if [ x${chroma}x != xx ]; then
 fi
 if [ x${primme}x != xx ]; then
 	primme_src="primme"
+fi
+if [ x${magma}x != xx ]; then
+	magma_src="magma"
 fi
 if [ x${cmake}x != xx ]; then
 	cmake_src="cmake"
@@ -639,6 +650,7 @@ $thrust       $thrust_src
 $openblas     $openblas_src
 $eigen        $eigen_src
 $primme       $primme_src
+$magma        $magma_src
 $qmp          $qmp_src
 $qdp          $qdp_src
 $qphix        $qphix_src
@@ -678,7 +690,8 @@ colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    master
-primme                 https://github.com/primme/primme                master
+primme                 https://github.com/primme/primme                eloy/primme-3.3
+magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.6.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
 quda                   https://github.com/lattice/quda                 v1.0.0
 quda-hip               https://github.com/lattice/quda                 feature/hip-compile-fixes
@@ -1184,8 +1197,45 @@ if [ x${qphix}x != xx ]; then
 	fi
 fi
 
+if [ x${magma}x != xx ]; then
+	magma_install="magma-${use_arch}"
+	sdir="${srcdir}/${magma_src}"
+	bdir="${builddir}/${magma_install}"
+	idir="${installdir}/${magma_install}"
+	info "Doing ${magma} MAGMA; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${magma} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${magma} == install -o ! -d ${idir} ]; then
+		if [ $use_arch == cpu ]; then
+			echo MAGMA has to be compile for CUDA or HIP
+			exit 1
+		fi
+		case $use_blas in
+		mkl*) blas="Intel10_64lp_seq";;
+		openblas*) blas="OpenBLAS";;
+		atlas*) blas="ATLAS";;
+		esac
+
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		CXXFLAGS="${CXXFLAGS//-std=c++??/}" run cmake -DCMAKE_INSTALL_PREFIX=${idir} \
+			-DBUILD_SHARED_LIBS=OFF -DGPU_TARGET=$SM \
+			-DCUDA_TOOLKIT_ROOT_DIR="$CUDADIR" \
+			-DMAGMA_ENABLE_CUDA=ON \
+			-DBLA_STATIC=ON -DBLA_VENDOR=$blas ${sdir}
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+	CFLAGS+=" -I${installdir}/${magma_install}/include"
+	CXXFLAGS+=" -I${installdir}/${magma_install}/include"
+	LIBS="${installdir}/${magma_install}/lib/libmagma.a $LIBS"
+fi
+
+
 if [ x${primme}x != xx ]; then
-	primme_install="primme"
+	primme_install="primme-${use_arch}"
+	[ $use_arch == hip ] && primme_install="primme-cpu"
 	sdir="${srcdir}/${primme_src}"
 	bdir="${builddir}/${primme_install}"
 	idir="${installdir}/${primme_install}"
@@ -1195,7 +1245,11 @@ if [ x${primme}x != xx ]; then
 	elif [ ${primme} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${primme_src} $bdir
-		run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC"
+		if [ $use_arch == cpu -o $use_arch == hip ]; then
+			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC"
+		elif [ $use_arch == cuda ]; then
+			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" CUDADIR="$CUDADIR" MAGMADIR="${installdir}/${magma_install}"
+		fi
 		run cp ${bdir}/lib/libprimme.a ${idir}/lib
 	fi
 	CFLAGS+=" -I${installdir}/${primme_install}/include"
@@ -1305,12 +1359,13 @@ if [ x${chroma}x != xx ]; then
 			        	--enable-qphix-solver-inner-soalen=8 \
 			        	--with-mg-proto=${installdir}/${mgproto_install}"
 			fi
+			[ x${primme}x != xx ] && chroma_extra+=" --with-primme=${installdir}/${primme_install}"
+			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 			[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
 			run ${sdir}/configure \
 				--prefix=${idir} \
 				--with-qdp=${installdir}/${qdp_install} \
 				--with-qmp=${installdir}/${qmp_install} \
-				--with-superbblas=${installdir}/${superbblas_install} \
 			        --enable-static-packed-gauge \
 			        --enable-fused-clover-deriv-loops \
 				--enable-lapack=lapack --enable-opt-eigcg \
@@ -1327,6 +1382,9 @@ if [ x${chroma}x != xx ]; then
 				-DChroma_ENABLE_QUDA=ON \
 				-DQUDA_DIR=${installdir}/${quda_install}/lib/cmake/QUDA \
 				"
+			[ x${magma}x != xx ] && chroma_extra+=" -DChroma_ENABLE_MAGMA=ON -DMAGMA_DIR=${installdir}/${magma_install}"
+			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
+			[ x${superbblas}x != xx ] && chroma_extra+=" -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
@@ -1335,7 +1393,6 @@ if [ x${chroma}x != xx ]; then
 				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
 				-DChroma_ENABLE_JIT_CLOVER=ON \
 				-DChroma_ENABLE_SUPERBBLAS=ON \
-				-DSUPERBBLAS_DIR=${installdir}/${superbblas_install} \
 		    		-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
 				$chroma_extra \
 				${sdir}

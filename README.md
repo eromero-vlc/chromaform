@@ -4,14 +4,16 @@ Automatic installation of JLab's chroma and redstar packages.
 ## Brochure:
 
 ```bash
-chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                     \
-           [--float] [--jit] [--mg] [--pdf] [--next]                                    \
-           [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                  \
-           [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]      \
-           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no] [--std=c++11|--std=c++14] \
-           [--clean|--install|--update|--download-only] [cmake] [llvm] [openblas]       \
-           [eigen] [qmp] [qdp] [superbblas] [primme] [mgproto] [qphix] [chroma]         \
-           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                 \
+chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                       \\
+           [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
+           [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
+           [--thrust=build|--thrust=system]                                               \\
+           [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
+           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no]                             \\
+           [--std=c++11|--std=c++14|--std=c++20]                                          \\
+           [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
+           [openblas] [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] \\
+           [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]          \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
 ```
 
@@ -25,7 +27,7 @@ chromaform --mg chroma
 chromaform --mg --avx512 chroma
 
 # Install chroma with QUDA for arch=sm_70
-chromaform --mg --jit chroma SM=sm_70
+chromaform --mg --cuda chroma SM=sm_70
 
 # Install redstar and harom
 chromaform redstar harom
@@ -49,11 +51,16 @@ Some packages have special optional features.
 * `--float`:
    Install the single-precision version; the double precision version is installed
    by default. Used by QDP.
-* `--jit`:
+* `--cuda`:
    Install the CUDA/JIT version; the CPU version is installed by default. Used by QDP,
+   superbblas, and chroma.
+* `--hip`:
+   Install the HIP/JIT version; the CPU version is installed by default. Used by QDP,
    superbblas, and chroma.
 * `--mg`:
    Install multigrid extension of chroma; it isn't installed by default.
+* `--superb`:
+   Install the superbblas extensions of chroma; it isn't installed by default.
 * `--pdf`:
    Install the devel-pdf branches of adat, colorvec and redstar; the devel branch is
    installed by default.
@@ -77,6 +84,11 @@ Some packages have special optional features.
    Use the LLVM indicated by llvm-config  in $PATH if 'system' is given; otherwise, it
    builds a recent version. By default, it detects the LLVM version available, and build 
    LLVM if it is not.
+
+* `--thrust=[build|system]`:
+   Use the cub/thrust in the CUDA SDK if 'system' is given; otherwise, it
+   downloads a recent version. By default, it detects the thrust version available, and
+   download cub and thrust if it is not.
 
 * `--blas=[openblas|openblas-system|atlas-system|mkl]`:
    Build OpenBLAS if 'openblas' is given, or use the system OpenBLAS, ATLAS, or MKL if
@@ -103,8 +115,9 @@ Control the flags use for building the packages.
    compiler, and set the QphiX isa=avx512. No AVX512 extension is set by default and
    QPhiX is built with isa=avx2.
 
-* `--std=c++11`|`c++14`:
-   Append the given flag to CXXFLAGS; --std=c++14 is appended by default.
+* `--std=c++11|c++14|c++20`:
+   Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
+   is set; otherwise, --std=c++14 is appended by default.
 
 * `--autoflags=no`:
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
@@ -184,7 +197,7 @@ module load intel-compilers
 module load intel-mkl
 module load intel-mpi
 module load cuda/10.2
-./chromaform --mg --jit --next chroma SM=sm_70 CC=mpicc CXX=mpicxx MAKE_JN=10
+./chromaform --mg --cuda --next chroma SM=sm_70 CC=mpicc CXX=mpicxx MAKE_JN=10
 
 # At Piz Dain
 module purge
@@ -194,20 +207,20 @@ module load daint-gpu
 module load cray-mpich
 module load craype-accel-nvidia60
 module load cray-python
-./chromaform --mg --jit --next chroma SM=sm_60 CC=cc CXX=CC FC=ftn
+./chromaform --mg --cuda --next chroma SM=sm_60 CC=cc CXX=CC FC=ftn
 
 # At Juwels Booster
 module load GCC/9.3.0
 module load OpenMPI/4.1.0rc1
 module load CUDA/11.0
 module load CMake/3.18.0
-./chromaform --mg --jit --next chroma SM=sm_80 FC=gfortran
+./chromaform --mg --cuda --next chroma SM=sm_80 FC=gfortran
 
 # At Summit (other versions of cuda & gcc may also work)
 module load cuda/10.2.89
 module load gcc/7.4.0
 module load cmake
-./chromaform --mg --jit --next chroma SM=sm_70 FC=gfortran MAKE_JN=10
+./chromaform --mg --cuda --next chroma SM=sm_70 FC=gfortran MAKE_JN=10
 
 # Femto
 module purge
