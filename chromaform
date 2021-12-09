@@ -689,7 +689,7 @@ adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
-laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    master
+laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.6.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
@@ -1384,7 +1384,7 @@ if [ x${chroma}x != xx ]; then
 				"
 			[ x${magma}x != xx ] && chroma_extra+=" -DChroma_ENABLE_MAGMA=ON -DMAGMA_DIR=${installdir}/${magma_install}"
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
-			[ x${superbblas}x != xx ] && chroma_extra+=" -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
+			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
@@ -1392,8 +1392,8 @@ if [ x${chroma}x != xx ]; then
 				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
 				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
 				-DChroma_ENABLE_JIT_CLOVER=ON \
-				-DChroma_ENABLE_SUPERBBLAS=ON \
 		    		-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
+				-DBLAS_SUFFIX_LINK_FLAGS="$LIBS" \
 				$chroma_extra \
 				${sdir}
 		fi
@@ -1443,7 +1443,7 @@ if [ x${redstar}x != xx ]; then
 fi
 
 if [ x${laplace_eigs}x != xx ]; then
-	laplace_eigs_install="laplace_eigs"
+	laplace_eigs_install="laplace_eigs-${qdp3d_install}"
 	sdir="${srcdir}/${laplace_eigs_src}"
 	bdir="${builddir}/${laplace_eigs_install}"
 	idir="${installdir}/${laplace_eigs_install}"
@@ -1453,9 +1453,9 @@ if [ x${laplace_eigs}x != xx ]; then
 	elif [ ${laplace_eigs} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p ${idir}
-		run cp -r $idir $bdir
+		run cp -r $sdir $bdir
 		pushd $bdir
-		run ${MYMAKE} ARCH="QMP" PRIMME_ENV=${installdir}/${primme_install} QDP_CONFIG_ND3_ENV=${installdir}/${qdp3d_install} QDP_CONFIG_ND4_ENV=${installdir}/${qdp_install} 
+		run ${MYMAKE} ARCH="QMP" PRIMME_ENV=${installdir}/${primme_install} QDP_CONFIG_ND3_ENV=${installdir}/${qdp3d_install}/bin/qdp++-config QDP_CONFIG_ND4_ENV=${installdir}/${qdp_install}/bin/qdp++-config
 		run cp laplace_eigs vecs_combine_4d vecs_combine_3d ${idir}
 		popd
 	fi
