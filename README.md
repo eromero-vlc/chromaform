@@ -67,8 +67,6 @@ Some packages have special optional features.
 * `--next`:
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
-   - QPhiX/mg_proto/chroma: multiple right-hand-side inversions and efficient CPU/GPU
-     computation of disconnect diagrams, props and genprops with superbblas.
    - colorvec/redstar: smearing elementals on the fly.
 
 ## CMake, LLVM, BLAS:
@@ -173,20 +171,16 @@ module load gcc-7.1.0
 source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.sh intel64
 export PATH=$PATH:/dist/intel/parallel_studio_2019/intelpython3/bin
 ./chromaform --mg --knl chroma CC=mpiicc CXX=mpiicpc
-./chromaform --mg --knl --next chroma CC=mpiicc CXX=mpiicpc
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake
 ./chromaform --mg --knl chroma CC=cc CXX=CC
-./chromaform --mg --knl --next chroma CC=cc CXX=CC
 
 # Default environment at TACC Frontera
 ./chromaform --avx512 --mg chroma
-./chromaform --avx512 --mg --next chroma
 
 # Default environment at TACC Stampede2 (executables work for skylake & KNL)
 ./chromaform --knl --mg chroma
-./chromaform --knl --mg --next chroma
 
 # At Jean-Zay
 module purge
@@ -197,7 +191,7 @@ module load intel-compilers
 module load intel-mkl
 module load intel-mpi
 module load cuda/10.2
-./chromaform --mg --cuda --next chroma SM=sm_70 CC=mpicc CXX=mpicxx MAKE_JN=10
+./chromaform --mg --cuda chroma SM=sm_70 CC=mpicc CXX=mpicxx MAKE_JN=10
 
 # At Piz Dain
 module purge
@@ -207,20 +201,20 @@ module load daint-gpu
 module load cray-mpich
 module load craype-accel-nvidia60
 module load cray-python
-./chromaform --mg --cuda --next chroma SM=sm_60 CC=cc CXX=CC FC=ftn
+./chromaform --mg --cuda chroma SM=sm_60 CC=cc CXX=CC FC=ftn
 
 # At Juwels Booster
 module load GCC/9.3.0
 module load OpenMPI/4.1.0rc1
 module load CUDA/11.0
 module load CMake/3.18.0
-./chromaform --mg --cuda --next chroma SM=sm_80 FC=gfortran
+./chromaform --mg --cuda chroma SM=sm_80 FC=gfortran
 
 # At Summit (other versions of cuda & gcc may also work)
 module load cuda/10.2.89
 module load gcc/7.4.0
 module load cmake
-./chromaform --mg --cuda --next chroma SM=sm_70 FC=gfortran MAKE_JN=10
+./chromaform --mg --cuda chroma SM=sm_70 FC=gfortran MAKE_JN=10
 
 # Femto
 module purge
@@ -232,5 +226,5 @@ module load isa/skylake
 source /usr/local/intel-2019/mkl/bin/mklvars.sh intel64
 module load cmake
 export LD_LIBRARY_PATH=/usr/local/gcc-9.1.0/lib64:$LD_LIBRARY_PATH
-./chromaform --mg --next chroma
+./chromaform --mg chroma
 ```
