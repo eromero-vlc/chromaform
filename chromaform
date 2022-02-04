@@ -880,7 +880,10 @@ if [ x${tensor}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --without-arpack
+		case "`detect_compiler`" in
+		icc) run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts CC=icc CXX=icpc ;;
+		*)   run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts ;;
+		esac
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
@@ -1251,6 +1254,7 @@ if [ x${primme}x != xx ]; then
 		elif [ $use_arch == cuda ]; then
 			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" CUDADIR="$CUDADIR" MAGMADIR="${installdir}/${magma_install}"
 		fi
+		run rm ${idir}/lib/libprimme.so*
 		run cp ${bdir}/lib/libprimme.a ${idir}/lib
 	fi
 	CFLAGS+=" -I${installdir}/${primme_install}/include"
