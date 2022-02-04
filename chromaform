@@ -62,8 +62,7 @@ Some packages have special optional features.
 --next
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
-   - QPhiX/mg_proto/chroma: multiple right-hand-side inversions and efficient CPU/GPU
-     computation of disconnect diagrams, props and genprops with superbblas.
+   - chroma: new disconnected diagram task based on frequency splitting.
    - colorvec/redstar: smearing elementals on the fly.
 
 * CMake, LLVM, BLAS:
@@ -569,6 +568,7 @@ if [ x${qphix}x != xx ]; then
 fi
 if [ x${mgproto}x != xx ]; then
 	mgproto_src="mgproto"
+	[ $use_next == yes ] && mgproto_src="mgproto2"
 fi
 if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
@@ -675,9 +675,10 @@ qdp-jit                https://github.com/JeffersonLab/qdp-jit         devel
 qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concepts
 qmp                    https://github.com/usqcd-software/qmp           devel
 chroma                 https://github.com/JeffersonLab/chroma          devel
-chroma2                https://github.com/JeffersonLab/chroma          eloy/superb
+chroma2                https://github.com/twLQCD/chroma.git            freqsplit_interp
 qphix                  https://github.com/JeffersonLab/qphix           devel
 mgproto                https://github.com/JeffersonLab/mg_proto        devel
+mgproto2               https://github.com/twLQCD/mg_proto.git          reuse_prolong
 harom                  https://github.com/JeffersonLab/harom           devel
 hadron                 https://github.com/JeffersonLab/hadron          devel
 tensor                 https://github.com/JeffersonLab/tensor          master
@@ -1361,7 +1362,7 @@ if [ x${chroma}x != xx ]; then
 			fi
 			[ x${primme}x != xx ] && chroma_extra+=" --with-primme=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
-			[ $use_blas == mkl-system ] && sb_cxx_extra="-DSUPERBBLAS_USE_MKL"
+			[ $use_next == yes ] && sb_cxx_extra=" -I${srcdir}/math/include"
 			run ${sdir}/configure \
 				--prefix=${idir} \
 				--with-qdp=${installdir}/${qdp_install} \

@@ -67,6 +67,7 @@ Some packages have special optional features.
 * `--next`:
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
+   - chroma: new disconnected diagram task based on frequency splitting.
    - colorvec/redstar: smearing elementals on the fly.
 
 ## CMake, LLVM, BLAS:
