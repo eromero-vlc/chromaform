@@ -14,7 +14,8 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
            [openblas] [gmp]  [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto]  \\
            [qphix] [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]  \\
-           [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
+           [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
+           [CMAKE_EXTRA_FLAGS=...]
 ```
 
 ## Examples:
@@ -225,6 +226,28 @@ module load cuda/10.2.89
 module load gcc/7.4.0
 module load cmake
 ./chromaform --mg --cuda --superb chroma SM=sm_70 FC=gfortran MAKE_JN=10
+
+# Perlmutter
+module purge
+module load cmake
+module load cudatoolkit
+module load craype-network-ofi
+module load craype-x86-rome
+module load PrgEnv-gnu
+module load cray-mpich
+module load gcc/11.2.0
+cudadir_extra="/opt/nvidia/hpc_sdk/Linux_x86_64/21.9/math_libs/11.4/targets/x86_64-linux"
+cmake_extra=" \
+        -DCUDA_cublas_LIBRARY=${cudadir_extra}/lib/libcublas.so
+        -DCUDA_cublas_device_LIBRARY=${cudadir_extra}/lib/libcublasLt.so
+        -DCUDA_cusolver_LIBRARY=${cudadir_extra}/lib/libcusolver.so
+        -DCUDA_cusparse_LIBRARY=${cudadir_extra}/lib/libcusparse.so
+        -DCUDA_nppi_LIBRARY=${cudadir_extra}/lib/lib/libnppial.so"
+./chromaform --mg --cuda --superb chroma SM=sm_80 CC=cc CXX=CC FC=ftn \
+        CFLAGS="-I${cudadir_extra}/include" \
+        CXXFLAGS="-I${cudadir_extra}/include" \
+        LDFLAGS="-L${cudadir_extra}/lib" \
+        CMAKE_EXTRA_FLAGS="$cmake_extra"
 
 # Femto
 module purge

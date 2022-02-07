@@ -16,7 +16,8 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
            [openblas] [gmp]  [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto]  \\
            [qphix] [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]  \\
-           [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
+           [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
+           [CMAKE_EXTRA_FLAGS=...]
 
 Examples:
 
@@ -776,7 +777,7 @@ quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDefl
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
 cmake                  https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
-llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0-rc2/llvm-13.0.0rc2.src.tar.xz
+llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
@@ -1064,6 +1065,7 @@ if [ x${qmp}x != xx ]; then
 				-DBUILD_TESTING=OFF \
 				-DQMP_MPI=ON \
 				-DQMP_TIMING=OFF \
+				${CMAKE_EXTRA_FLAGS} \
 				${sdir}
 		fi
 		run ${MYMAKE} install -j $MAKE_JN
@@ -1130,6 +1132,7 @@ if [ x${qdp}x != xx ]; then
 					-DQDP_PRECISION=${qdp_prec} \
 					-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
 					$qdp_extra \
+					${CMAKE_EXTRA_FLAGS} \
 					${sdir}
 			fi
 			run ${MYMAKE} install -j $MAKE_JN
@@ -1156,6 +1159,31 @@ if [ x${quda}x != xx ]; then
 		fi
 		build_type="DEVEL"
 		[ $use_opt == debug ] && build_type="DEBUG"
+		if [ $use_arch == cuda -a ! -f $sdir/tune_quda.patch ]; then
+			cat << EOF > $tmp/quda.patch
+diff --git a/include/tune_quda.h b/include/tune_quda.h
+index e5d565076..7aec3e571 100644
+--- a/include/tune_quda.h
++++ b/include/tune_quda.h
+@@ -165,6 +165,7 @@ namespace quda {
+         case 2: return 32;
+         case 5: return 16;
+         }
++      case 8: return 32;
+       default:
+         warningQuda("Unknown SM architecture %d.%d - assuming limit of 32 blocks per SM\n",
+                     deviceProp.major, deviceProp.minor);
+@@ -208,6 +209,7 @@ namespace quda {
+         case 2: return 96 * 1024;
+         case 5: return 64 * 1024;
+         }
++       case 8: return 64 * 1024;
+       default:
+         warningQuda("Unknown SM architecture %d.%d - assuming limit of 48 KiB per SM\n",
+                     deviceProp.major, deviceProp.minor);
+EOF
+			( cd $sdir; git apply $tmp/quda.patch && touch $sdir/tune_quda.patch )
+		fi
 		if [ $use_arch != hip ]; then
 			quda_extra_args="\
 				-DQUDA_TARGET_TYPE=CUDA \
@@ -1219,6 +1247,7 @@ if [ x${quda}x != xx ]; then
 			-DQUDA_BUILD_SHAREDLIB=NO \
 			-DQUDA_BUILD_ALL_TESTS=OFF \
 			$quda_extra_args \
+			${CMAKE_EXTRA_FLAGS} \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -1255,6 +1284,7 @@ if [ x${mugiq}x != xx ]; then
 			-DCMAKE_LINKER=${CXX} \
 			-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
 			-DMUGIQ_BUILD_ALL_TESTS=OFF \
+			${CMAKE_EXTRA_FLAGS} \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -1291,6 +1321,7 @@ if [ x${qphix}x != xx ]; then
 		      -DPYTHON_EXECUTABLE="$( which python3 )" \
 		      -DPYTHON_INCLUDE_DIR=/usr/include \
 		      -DPYTHON_LIBRARY=/usr/lib \
+		      ${CMAKE_EXTRA_FLAGS} \
 		      ${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -1321,9 +1352,11 @@ if [ x${magma}x != xx ]; then
 		pushd $bdir
 		CXXFLAGS="${CXXFLAGS//-std=c++??/}" run cmake -DCMAKE_INSTALL_PREFIX=${idir} \
 			-DBUILD_SHARED_LIBS=OFF -DGPU_TARGET=$SM \
-			-DCUDA_TOOLKIT_ROOT_DIR="$CUDADIR" \
+			-DCUDA_SDK_ROOT_DIR="$CUDADIR" \
 			-DMAGMA_ENABLE_CUDA=ON \
-			-DBLA_STATIC=ON -DBLA_VENDOR=$blas ${sdir}
+			-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
+			${CMAKE_EXTRA_FLAGS} \
+			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
@@ -1375,6 +1408,7 @@ if [ x${superbblas}x != xx ]; then
 		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
 			[ x${thrust}x != xx ] && sb_nvcc_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
+			[ $use_next == nop ] && sb_nvcc_extra+=" -std=c++14"
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_nvcc_extra"
 		elif [ $use_arch == hip ]; then
 			make_action="install_hip"
@@ -1383,10 +1417,11 @@ if [ x${superbblas}x != xx ]; then
 			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
-		[ $use_arch == cuda -a $use_next == nop ] && sb_cxx_extra+=" -std=c++14"
-		run $MYMAKE -C ${bdir} -j $MAKE_JN  $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
+		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
+		[ $use_arch == cuda -a $use_next == nop ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
+		run $MYMAKE -C ${bdir} -j $MAKE_JN  $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
 	fi
-	# Add clang openmp dependcy
+	# Add clang openmp dependency
 	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -l`/../lib -lomp"
 fi
 
@@ -1424,6 +1459,7 @@ if [ x${mgproto}x != xx ]; then
 		    -DMG_DEFAULT_LOGLEVEL=DEBUG \
 		    -DMG_KOKKOS_USE_NEIGHBOR_TABLE=FALSE \
 		     $mgproto_extra \
+		     ${CMAKE_EXTRA_FLAGS} \
 		     ${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -1496,6 +1532,7 @@ if [ x${chroma}x != xx ]; then
 		    		-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
 				-DBLAS_SUFFIX_LINK_FLAGS="$LIBS" \
 				$chroma_extra \
+				${CMAKE_EXTRA_FLAGS} \
 				${sdir}
 		fi
 		run ${MYMAKE} install -j $MAKE_JN
