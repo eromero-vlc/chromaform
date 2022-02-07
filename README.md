@@ -7,13 +7,13 @@ Automatic installation of JLab's chroma and redstar packages.
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                       \\
            [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
-           [--thrust=build|--thrust=system]                                               \\
+           [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no]                             \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
-           [openblas] [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] \\
-           [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]          \\
+           [openblas] [gmp]  [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto]  \\
+           [qphix] [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]  \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
 ```
 
@@ -97,6 +97,11 @@ Some packages have special optional features.
    uses MKL if MKLROOT is set, or OpenBLAS or ATLAS if they have pkg-config sets
    available.
 
+* `--gmp=[build|system]`:
+   Use the qmp in the system if 'system' is given; otherwise, it
+   downloads a recent version. By default, it detects if they have pkg-config
+   configuration available.
+
 ## Compilation flags:
 Control the flags use for building the packages.
 
@@ -114,15 +119,19 @@ Control the flags use for building the packages.
    compiler, and set the QphiX isa=avx512. No AVX512 extension is set by default and
    QPhiX is built with isa=avx2.
 
+* `--zen2|--zen3`:
+   Append flags in CFLAGS and CXXFLAGS to activate the Zen 2 or 3 optimizations. By
+   default, if it detects and AMD cpu, it sets Zen 2 optimizations.
+
 * `--std=c++11|c++14|c++20`:
    Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
    is set; otherwise, --std=c++14 is appended by default.
 
 * `--autoflags=no`:
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
-   --avx512, --knl, and --std, or any automatic heuristic in this script. By default,
-   besides setting CFLAGS and CXXFLAGS as described, flags are added to activate AVX2 and
-   OpenMP compiler extensions.
+   --avx512, --knl, --zen2, --zen3, and --std, or any automatic heuristic in this script.
+   By default, besides setting CFLAGS and CXXFLAGS as described, flags are added to
+   activate AVX2 and OpenMP compiler extensions.
 
 ## Actions and packages:
 An action is either of the flags --clean, --install, or --update, and can be followed by

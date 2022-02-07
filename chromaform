@@ -9,13 +9,13 @@ Script for installing chroma and redstar and related software.
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                       \\
            [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
-           [--thrust=build|--thrust=system]                                               \\
+           [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no]                             \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
-           [openblas] [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] \\
-           [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]          \\
+           [openblas] [gmp]  [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto]  \\
+           [qphix] [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]  \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]
 
 Examples:
@@ -92,6 +92,12 @@ Some packages have special optional features.
    uses MKL if MKLROOT is set, or OpenBLAS or ATLAS if they have pkg-config sets
    available.
 
+--gmp=[build|system]
+   Use the qmp in the system if 'system' is given; otherwise, it
+   downloads a recent version. By default, it detects if they have pkg-config
+   configuration available.
+
+
 * Compilation flags:
 Control the flags use for building the packages.
 
@@ -109,15 +115,19 @@ Control the flags use for building the packages.
    compiler, and set the QphiX isa=avx512. No AVX512 extension is set by default and
    QPhiX is built with isa=avx2.
 
+--zen2|--zen3
+   Append flags in CFLAGS and CXXFLAGS to activate the Zen 2 or 3 optimizations. By
+   default, if it detects and AMD cpu, it sets Zen 2 optimizations.
+
 --std=c++11|c++14|c++20   
    Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
    is set; otherwise, --std=c++14 is appended by default.
 
 --autoflags=no
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
-   --avx512, --knl, and --std, or any automatic heuristic in this script. By default,
-   besides setting CFLAGS and CXXFLAGS as described, flags are added to activate AVX2 and
-   OpenMP compiler extensions.
+   --avx512, --knl, --zen2, --zen3, and --std, or any automatic heuristic in this script.
+   By default, besides setting CFLAGS and CXXFLAGS as described, flags are added to
+   activate AVX2 and OpenMP compiler extensions.
 
 * Actions and packages:
 An action is either of the flags --clean, --install, or --update, and can be followed by
@@ -170,10 +180,12 @@ use_mg="nop"
 use_llvm=""
 use_thrust=""
 use_blas=""
+use_gmp=""
 use_cmake=""
 use_autoflags="yes"
 use_opt="opt"
 use_knl="nop"
+use_zen="nop"
 use_std=""
 action="update"
 
@@ -210,7 +222,10 @@ for (( i=1 ; i<=n ; ++i )); do
 	--jit|--cuda) use_arch="cuda";;
 	--hip) use_arch="hip";;
 	--superb) use_superb="yes";;
-	--avx512) use_avx512="yes";;
+	--avx512) use_avx512="yes";use_zen="nop";;
+	--knl) use_knl="yes"; use_avx512="yes"; use_zen="nop";;
+	--zen2) use_knl="nop"; use_avx512="nop"; use_zen="zen2";;
+	--zen3) use_knl="nop"; use_avx512="nop"; use_zen="zen3";;
 	--mg) use_mg="yes";;
 	--next) use_next="yes";;
 	--clean) action="clean";do_cleaning="yes";;
@@ -226,12 +241,13 @@ for (( i=1 ; i<=n ; ++i )); do
 	--blas=openblas-system) use_blas="openblas-system";;
 	--blas=atlas-system) use_blas="atlas-system";;
 	--blas=mkl) use_blas="mkl-system";;
+	--gmp=build) use_gmp="gmp";;
+	--gmp=system) use_gmp="gmp-system";;
 	--autoflags=no) use_autoflags="nop";;
 	--autoflags=yes) use_autoflags="yes";;
 	-g) use_opt="debug";;
 	-O) use_opt="opt";;
 	-Onone) use_opt="nop";;
-	--knl) use_knl="yes"; use_avx512="yes";;
 	--c++11) use_std="c++11";;
 	--c++14) use_std="c++14";;
 	--c++20) use_std="c++20";;
@@ -340,6 +356,39 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
 			;;
 		esac
+	elif [ ${use_zen} == zen2 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xaCORE-AVX2"
+			CFLAGS+=" -xaCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver2"
+			CFLAGS+=" -march=znver2"
+			;;
+		esac
+	elif [ ${use_zen} == zen3 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xaCORE-AVX2"
+			CFLAGS+=" -xaCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver3"
+			CFLAGS+=" -march=znver3"
+			;;
+		esac
+	elif grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xaCORE-AVX2"
+			CFLAGS+=" -xaCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver2"
+			CFLAGS+=" -march=znver2"
+			;;
+		esac
 	elif grep -q "cpu.*:.*POWER" /proc/cpuinfo ; then
 		echo Detected POWER architecture, no specific architecture flags set
 	else
@@ -421,6 +470,25 @@ if [ x${use_blas}x == xx ]; then
 	esac
 fi
 
+# Detect GMP
+
+if [ x${use_gmp}x == xx ]; then
+	info "No GMP suggestion give; detecting GMP..."
+	case "$LDFLAGS $LIBS" in
+	*gmp*) use_gmp="gmp-system";;
+	*)
+		if [ x${gmp}x != xx ]; then
+			use_gmp="gmp"
+		elif pkg-config --libs gmpxx ; then
+			use_gmp="gmp-system"
+			LIBS+=" `pkg-config --libs gmpxx`"
+		else
+			use_gmp="gmp"
+		fi
+		;;
+	esac
+fi
+
 # Detect if there is a cmake available in case the user does not give a clue
 
 if [ x${use_cmake}x == xx ]; then
@@ -482,6 +550,7 @@ info "Using cmake: ${use_cmake}"
 info "Using llvm: ${use_llvm}"
 info "Using thrust: ${use_thrust}"
 info "Using BLAS: ${use_blas}"
+info "Using GMP: ${use_gmp}"
 info "Using CC=$CC"
 info "Using CFLAGS=$CFLAGS"
 info "Using CXX=$CXX"
@@ -511,6 +580,7 @@ fi
 
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
+[ x${redstar}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
 [ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
@@ -640,6 +710,9 @@ fi
 if [ x${laplace_eigs}x != xx ]; then
 	laplace_eigs_src="laplace_eigs"
 fi
+if [ x${gmp}x != xx ]; then
+	gmp_src="gmp"
+fi
 
 cat << EOF | while read act proj
 $cmake        $cmake_src
@@ -667,6 +740,7 @@ $tensor       $tensor_src
 $hadron       $hadron_src
 $harom        $harom_src
 $redstar      $redstar_src
+$gmp          $gmp_src
 EOF
 do
         cat << EOF | while read name repo branch
@@ -709,6 +783,7 @@ rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
 openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
+gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -727,9 +802,9 @@ EOF
 		*git*) ( GIT_ASKPASS=w run git clone --recursive $repo -b $branch $srcdir/$proj ) || GIT_ASKPASS=w run git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} -b $branch $srcdir/$proj;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
-		[ $proj == cpm ] && ln -s $srcdir/$proj/cmake/CPM.cmake $srcdir/$proj/CPM_0.32.1.cmake
+		if [ $proj == cpm ] ; then ln -s $srcdir/$proj/cmake/CPM.cmake $srcdir/$proj/CPM_0.32.1.cmake ; fi
 	done || exit 1
-done || exit 1
+done || ( echo "Error happened while downloading source codes"  && false ) || exit 1
 
 if [ $download_only == yes ]; then
 	if [ $do_cleaning == yes ]; then
@@ -1427,6 +1502,27 @@ if [ x${harom}x != xx ]; then
 	fi
 fi
 
+if [ x${gmp}x != xx ]; then
+	gmp_install="${gmp_src}"
+	sdir="${srcdir}/${gmp_src}"
+	bdir="${builddir}/${gmp_install}"
+	idir="${installdir}/${gmp_install}"
+	info "Doing ${gmp} gmp; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${gmp} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${gmp} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --enable-cxx --disable-shared --with-pic
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LIBS+=" -L${idir}/lib -lgmpxx -lgmp"
+fi
+
 if [ x${redstar}x != xx ]; then
 	redstar_install="${redstar_src}"
 	sdir="${srcdir}/${redstar_src}"
@@ -1440,8 +1536,7 @@ if [ x${redstar}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		[ $use_next == yes ] && redstar_extra="--with-colorvec=${installdir}/${colorvec_install}"
-		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}  $redstar_extra LIBS="$LIBS -lgmpxx -lgmp"
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install} --with-colorvec=${installdir}/${colorvec_install}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
