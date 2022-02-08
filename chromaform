@@ -769,7 +769,7 @@ laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.6.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
-quda                   https://github.com/lattice/quda                 v1.0.0
+quda                   https://github.com/lattice/quda                 develop
 quda-hip               https://github.com/lattice/quda                 feature/hip-compile-fixes
 mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
@@ -1152,46 +1152,12 @@ if [ x${quda}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${quda} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${quda} == install -o ! -d ${idir} ]; then
-		if [ $use_arch == cuda ]; then
-			# Fix minor issues
-			run rm -rf $sdir/include/externals/cub
-			[ x${cub}x != xx ] && run ln -s ${srcdir}/${cub_src}/cub $sdir/include/externals/cub
-		fi
 		build_type="DEVEL"
 		[ $use_opt == debug ] && build_type="DEBUG"
-		if [ $use_arch == cuda -a ! -f $sdir/tune_quda.patch ]; then
-			cat << EOF > $tmp/quda.patch
-diff --git a/include/tune_quda.h b/include/tune_quda.h
-index e5d565076..7aec3e571 100644
---- a/include/tune_quda.h
-+++ b/include/tune_quda.h
-@@ -165,6 +165,7 @@ namespace quda {
-         case 2: return 32;
-         case 5: return 16;
-         }
-+      case 8: return 32;
-       default:
-         warningQuda("Unknown SM architecture %d.%d - assuming limit of 32 blocks per SM\n",
-                     deviceProp.major, deviceProp.minor);
-@@ -208,6 +209,7 @@ namespace quda {
-         case 2: return 96 * 1024;
-         case 5: return 64 * 1024;
-         }
-+       case 8: return 64 * 1024;
-       default:
-         warningQuda("Unknown SM architecture %d.%d - assuming limit of 48 KiB per SM\n",
-                     deviceProp.major, deviceProp.minor);
-EOF
-			( cd $sdir; git apply $tmp/quda.patch && touch $sdir/tune_quda.patch )
-		fi
 		if [ $use_arch != hip ]; then
 			quda_extra_args="\
 				-DQUDA_TARGET_TYPE=CUDA \
 				-DQUDA_GPU_ARCH=$SM \
-				-DQUDA_QDPJITHOME=${installdir}/${qdp_install} \
-				-DQUDA_QMPHOME=${installdir}/${qmp_install} \
-				-DQUDA_QIOHOME=${installdir}/${qdp_install} \
-				-DQUDA_LIMEHOME=${installdir}/${qdp_install} \
 				-DCMAKE_C_COMPILER=${CC} \
 				-DCMAKE_CXX_COMPILER=${CXX} \
 				-DCMAKE_LINKER=${CXX} \
@@ -1201,10 +1167,6 @@ EOF
 			quda_extra_args="\
 				-DQUDA_TARGET_TYPE=HIP \
 				-DGPU_TARGETS=$AMDGPU_TARGETS \
-				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
-				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
-				-DQIO_DIR=${installdir}/${qdp_install}/lib/cmake/QIO \
-				-DCLime_DIR=${installdir}/${qdp_install}/lib/cmake/CLime \
 				-DMPI_C_COMPILER=${CC} \
 				-DMPI_CXX_COMPILER=${CXX} \
 				-DCMAKE_C_COMPILER=hipcc \
@@ -1213,6 +1175,12 @@ EOF
 			# Avoid compiling issue in QUDA
 			quda_extra_args+=" -DQUDA_OPENMP=OFF"
 		fi
+		quda_extra_args+="\
+			-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
+			-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
+			-DQIO_DIR=${installdir}/${qdp_install}/lib/cmake/QIO \
+			-DCLime_DIR=${installdir}/${qdp_install}/lib/cmake/CLime \
+		"
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -1515,7 +1483,7 @@ if [ x${chroma}x != xx ]; then
 			esac
 
 			chroma_extra=""
-			[ $use_arch == hip -a $use_mg == yes ] && chroma_extra="\
+			[ $use_arch != cpu -a $use_mg == yes ] && chroma_extra="\
 				-DChroma_ENABLE_QUDA=ON \
 				-DQUDA_DIR=${installdir}/${quda_install}/lib/cmake/QUDA \
 				"
