@@ -480,11 +480,25 @@ if [ x${use_gmp}x == xx ]; then
 	*)
 		if [ x${gmp}x != xx ]; then
 			use_gmp="gmp"
-		elif pkg-config --libs gmpxx ; then
+		elif pkg-config --libs gmpxx &> /dev/null ; then
 			use_gmp="gmp-system"
 			LIBS+=" `pkg-config --libs gmpxx`"
 		else
 			use_gmp="gmp"
+		fi
+		;;
+	esac
+elif [ ${use_gmp} == "gmp-system" ]; then
+	case "$LDFLAGS $LIBS" in
+	*gmp*)
+		# Do nothing
+		;;
+	*)
+		if pkg-config --libs gmpxx &> /dev/null ; then
+			LIBS+=" `pkg-config --libs gmpxx`"
+	        else
+			# Wild guessing
+			LIBS+=" -lgmpxx -lgmp"
 		fi
 		;;
 	esac
