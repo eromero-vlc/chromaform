@@ -1166,12 +1166,13 @@ if [ x${quda}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${quda} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${quda} == install -o ! -d ${idir} ]; then
-		build_type="DEVEL"
+		build_type="RELEASE"
 		[ $use_opt == debug ] && build_type="DEBUG"
 		if [ $use_arch != hip ]; then
 			quda_extra_args="\
 				-DQUDA_TARGET_TYPE=CUDA \
 				-DQUDA_GPU_ARCH=$SM \
+				-DCMAKE_CUDA_ARCHITECTURES=${SM#sm_} \
 				-DCMAKE_C_COMPILER=${CC} \
 				-DCMAKE_CXX_COMPILER=${CXX} \
 				-DCMAKE_LINKER=${CXX} \
