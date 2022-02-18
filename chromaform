@@ -188,6 +188,7 @@ use_opt="opt"
 use_knl="nop"
 use_zen="nop"
 use_std=""
+do_export_env=""
 action="update"
 
 # Jean Zay's frontend does not have much memory and chroma linking fails often
@@ -252,6 +253,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--c++11) use_std="c++11";;
 	--c++14) use_std="c++14";;
 	--c++20) use_std="c++20";;
+	--env=*) do_export_env="${arg#--env=}";;
 	openblas) openblas="$action";;
 	cmake) cmake="$action";;
 	llvm) llvm="$action";;
@@ -274,6 +276,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	hadron) hadron="$action";;
 	harom) harom="$action";;
 	redstar) redstar="$action";;
+	gcc) gcc="$action";;
 	*=*) export ${arg%%=*}="${arg#*=}";;
 	--help|-h) echo "$hlp_msg"; exit 0;;
 	*) echo "Sorry! Unsupported option '$arg'"; echo "$hlp_msg"; exit 1;;
@@ -320,7 +323,9 @@ fi
 
 detect_compiler() {
 	compiler="any"
-	if ( $CXX -v 2>&1 | grep -q '^gcc version' ); then
+	if [ x${gcc}x != xx ]; then
+		compiler="gcc"
+	elif ( $CXX -v 2>&1 | grep -q '^gcc version' ); then
 		compiler="gcc"
 	elif ( $CXX -v 2>&1 | grep -q '^clang version' ); then
 		compiler="clang"
@@ -328,6 +333,16 @@ detect_compiler() {
 		compiler="icc"
 	elif ( $CXX -v 2>&1 | grep -q '^icpc version' ); then
 		compiler="icc"
+	fi
+	echo $compiler
+}
+
+detect_fortran_compiler() {
+	compiler="any"
+	if [ x${gcc}x != xx -o x${FC}x == xx ]; then
+		compiler="gcc"
+	elif ( $FC -v 2>&1 | grep -q '^gcc version' ); then
+		compiler="gcc"
 	fi
 	echo $compiler
 }
@@ -550,7 +565,7 @@ if [ x${use_thrust}x == xx ]; then
 		use_thrust="thrust"
 	elif [ $use_arch == hip ]; then
 		use_thrust="thrust"
-	elif [ -d $CUDADIR/targets/x86_64-linux/include/cub -a -d $CUDADIR/targets/x86_64-linux/include/thrust ]; then
+	elif [ -d $CUDADIR/targets/*/include/cub -a -d $CUDADIR/targets/*/include/thrust ]; then
 		use_thrust="thrust-system"
 	else
 		use_thrust="thrust"
@@ -595,7 +610,7 @@ fi
 
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
-[ x${adat}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
+[ x${adat}${gcc}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
 [ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
@@ -623,6 +638,10 @@ if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 fi
 
 [ x${llvm}${qphix}${mgproto}${quda}${mugiq}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
+
+[ x${gcc}x != xx -a x${mpfr}x == xx ] && mpfr="${mpfr:-update}"
+[ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
+[ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
 
 # Download
 
@@ -728,6 +747,12 @@ fi
 if [ x${gmp}x != xx ]; then
 	gmp_src="gmp"
 fi
+if [ x${gcc}x != xx ]; then
+	gcc_src="gcc"
+	mpfr_src="mpfr"
+	isl_src="isl"
+	mpc_src="mpc"
+fi
 
 cat << EOF | while read act proj
 $cmake        $cmake_src
@@ -756,6 +781,10 @@ $hadron       $hadron_src
 $harom        $harom_src
 $redstar      $redstar_src
 $gmp          $gmp_src
+$gcc          $gcc_src
+$mpfr         $mpfr_src
+$isl          $isl_src
+$mpc          $mpc_src
 EOF
 do
         cat << EOF | while read name repo branch
@@ -799,6 +828,10 @@ rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/r
 openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
+mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz
+gcc                    https://mirrors.concertpass.com/gcc/releases/gcc-10.1.0/gcc-10.1.0.tar.xz
+isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
+mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -837,6 +870,45 @@ builddir="`realpath $builddir`"
 installdir="`realpath $installdir`"
 info "Build directory: $builddir"
 info "Install directory: $installdir"
+if [ x${do_export_env}x != xx ]; then
+	info "Exporting environment in ${do_export_env}"
+	rm -f $do_export_env
+fi
+
+if [ x${gcc}x != xx ]; then
+	gcc_install="gcc"
+	sdir="${srcdir}/${gcc_src}"
+	bdir="${builddir}/${gcc_install}"
+	idir="${installdir}/${gcc_install}"
+	info "Doing ${gcc} GCC; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${gcc} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${gcc} == install -o ! -d ${idir} ]; then
+		[ -e ${sdir}/mpfr ] || ln -s ${srcdir}/${mpfr_src} ${sdir}/mpfr
+		[ -e ${sdir}/isl ] || ln -s ${srcdir}/${isl_src} ${sdir}/isl
+		[ -e ${sdir}/mpc ] || ln -s ${srcdir}/${mpc_src} ${sdir}/mpc
+		[ x${gmp}x != xx -a -f ${sdir}/gmp ] || ln -s ${srcdir}/${gmp_src} ${sdir}/gmp
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --disable-bootstrap --disable-multilib --enable-languages="c,c++,fortran" CC=gcc CXX=g++ CFLAGS= CXXFLAGS=
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
+		popd
+	fi
+	export PATH=$idir/bin:$PATH
+	libexec_gcc=`realpath $idir/libexec/gcc/*/10.1.0`
+	libplugin_gcc=`realpath $idir/lib/gcc/*/10.1.0/plugin`
+	export LD_LIBRARY_PATH=$idir/lib:$idir/lib64:$libexec_gcc:$LD_LIBRARY_PATH
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For gcc
+export LD_LIBRARY_PATH="$idir/lib:$idir/lib64:$libexec_gcc:\$LD_LIBRARY_PATH"
+export PATH="$idir/bin:\$PATH"
+EOF
+	fi
+fi
+
 
 if [ x${cmake}x != xx ]; then
 	cmake_install="cmake"
@@ -872,6 +944,12 @@ if [ x${cmake}x != xx ]; then
 		done
 	fi
 	export PATH=$idir/bin:$PATH
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For cmake
+export PATH="$idir/bin:\$PATH"
+EOF
+	fi
 fi
 
 if [ x${llvm}x != xx ]; then
@@ -901,6 +979,13 @@ if [ x${llvm}x != xx ]; then
 	fi
 	export PATH=$idir/bin:$PATH
 	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For llvm
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+export PATH="$idir/bin:\$PATH"
+EOF
+	fi
 fi
 
 if [ x${cub}x != xx ]; then
@@ -955,7 +1040,16 @@ if [ x${openblas}x != xx ]; then
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
 	LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
+	[ `detect_fortran_compiler` == gcc ] && LIBS+=" -lgfortran"
 fi
+
+case $use_blas in
+	mkl*) blas="Intel10_64lp_seq";;
+	openblas*) blas="OpenBLAS"; [ x${openblas}x != xx ] && cmake_blas_extra=" -DLAPACK_LIBRARIES=${installdir}/${openblas_install}/lib/libopenblas.a -DBLAS_openblas_LIBRARY=${installdir}/${openblas_install}/lib/libopenblas.a";;
+	atlas*) blas="ATLAS";;
+esac
+CMAKE_EXTRA_FLAGS="-DBLA_STATIC=ON -DBLA_VENDOR=$blas $cmake_blas_extra $CMAKE_EXTRA_FLAGS" 
+
 
 if [ x${tensor}x != xx ]; then
 	tensor_install="tensor"
@@ -1324,11 +1418,6 @@ if [ x${magma}x != xx ]; then
 			echo MAGMA has to be compile for CUDA or HIP
 			exit 1
 		fi
-		case $use_blas in
-		mkl*) blas="Intel10_64lp_seq";;
-		openblas*) blas="OpenBLAS";;
-		atlas*) blas="ATLAS";;
-		esac
 
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
@@ -1337,7 +1426,6 @@ if [ x${magma}x != xx ]; then
 			-DBUILD_SHARED_LIBS=OFF -DGPU_TARGET=$SM \
 			-DCUDA_SDK_ROOT_DIR="$CUDADIR" \
 			-DMAGMA_ENABLE_CUDA=ON \
-			-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
 			${CMAKE_EXTRA_FLAGS} \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
@@ -1417,11 +1505,6 @@ if [ x${mgproto}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${mgproto} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${mgproto} == install -o ! -d ${idir} ]; then
-		case $use_blas in
-		mkl*) blas="Intel10_64lp_seq";;
-		openblas*) blas="OpenBLAS";;
-		atlas*) blas="ATLAS";;
-		esac
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -1437,7 +1520,6 @@ if [ x${mgproto}x != xx ]; then
 		    -DKOKKOS_ENABLE_CUDA=FALSE \
 		    -DCMAKE_INSTALL_PREFIX=${idir} \
 		    -DQDPXX_DIR=${installdir}/${qdp_install} \
-		    -DBLA_STATIC=ON -DBLA_VENDOR=$blas \
 		    -DBUILD_TESTING=OFF \
 		    -DMG_DEFAULT_LOGLEVEL=DEBUG \
 		    -DMG_KOKKOS_USE_NEIGHBOR_TABLE=FALSE \
@@ -1491,12 +1573,6 @@ if [ x${chroma}x != xx ]; then
 				--enable-lapack=lapack --enable-opt-eigcg \
 				$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 		else
-			case $use_blas in
-			mkl*) blas="Intel10_64lp";;
-			openblas*) blas="OpenBLAS";;
-			atlas*) blas="ATLAS";;
-			esac
-
 			chroma_extra=""
 			[ $use_arch != cpu -a $use_mg == yes ] && chroma_extra="\
 				-DChroma_ENABLE_QUDA=ON \
@@ -1512,8 +1588,7 @@ if [ x${chroma}x != xx ]; then
 				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
 				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
 				-DChroma_ENABLE_JIT_CLOVER=ON \
-		    		-DBLA_STATIC=ON -DBLA_VENDOR=$blas \
-				-DBLAS_SUFFIX_LINK_FLAGS="$LIBS" \
+				-DBLAS_SUFFIX_LINK_FLAGS="$LIBS $chroma_extra_blas" \
 				$chroma_extra \
 				${CMAKE_EXTRA_FLAGS} \
 				${sdir}
