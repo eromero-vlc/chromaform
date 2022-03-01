@@ -182,6 +182,7 @@ module load gcc-7.1.0
 source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.sh intel64
 export PATH=$PATH:/dist/intel/parallel_studio_2019/intelpython3/bin
 ./chromaform --mg --knl --superb chroma CC=mpiicc CXX=mpiicpc
+./chromaform --knl redstar CC=mpiicc CXX=mpiicpc --gmp=system
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake
