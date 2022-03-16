@@ -9,7 +9,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
-           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no]                             \\
+           [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
            [openblas] [gmp]  [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto]  \\
@@ -110,19 +110,9 @@ Control the flags use for building the packages.
    Append '-g3 -O0' to CFLAGS and CXXFLAGS if '-g' is given, of '-O3' if '-O' is given, 
    or no flags are added if '-Onone' is given. By default, '-O3' is appended.
 
-* `--avx512`:
-   Append flags in CFLAGS and CXXFLAGS to activate AVX512 extensions in the compiler,
-   and set the QphiX isa=avx512. No AVX512 extension is set by default and QPhiX is built
-   with isa=avx2.
-
-* `--knl`:
-   Append flags in CFLAGS and CXXFLAGS to activate KNL and AVX512 extensions in the
-   compiler, and set the QphiX isa=avx512. No AVX512 extension is set by default and
-   QPhiX is built with isa=avx2.
-
-* `--zen2|--zen3`:
-   Append flags in CFLAGS and CXXFLAGS to activate the Zen 2 or 3 optimizations. By
-   default, if it detects and AMD cpu, it sets Zen 2 optimizations.
+* `--avx`|`--avx2`|`--knl`|`--avx512`|`--zen2`|`--zen3`
+   Append flags in CFLAGS and CXXFLAGS to activate proper extensions in the compiler,
+   and set the QphiX isa.
 
 * `--std=c++11|c++14|c++20`:
    Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
@@ -260,5 +250,12 @@ module load isa/skylake
 source /usr/local/intel-2019/mkl/bin/mklvars.sh intel64
 module load cmake
 export LD_LIBRARY_PATH=/usr/local/gcc-9.1.0/lib64:$LD_LIBRARY_PATH
+./chromaform --mg --superb chroma
+
+# Navigator+
+module load OpenMPI
+module load OpenBLAS
+module load CMake
+module load Python
 ./chromaform --mg --superb chroma
 ```

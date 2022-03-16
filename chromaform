@@ -11,7 +11,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
-           [-g|-O|-Onone] [--knl] [--avx512] [--autoflags=no]                             \\
+           [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
            [openblas] [gmp]  [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto]  \\
@@ -106,19 +106,9 @@ Control the flags use for building the packages.
    Append '-g3 -O0' to CFLAGS and CXXFLAGS if '-g' is given, of '-O3' if '-O' is given, 
    or no flags are added if '-Onone' is given. By default, '-O3' is appended.
 
---avx512
-   Append flags in CFLAGS and CXXFLAGS to activate AVX512 extensions in the compiler,
-   and set the QphiX isa=avx512. No AVX512 extension is set by default and QPhiX is built
-   with isa=avx2.
-
---knl
-   Append flags in CFLAGS and CXXFLAGS to activate KNL and AVX512 extensions in the
-   compiler, and set the QphiX isa=avx512. No AVX512 extension is set by default and
-   QPhiX is built with isa=avx2.
-
---zen2|--zen3
-   Append flags in CFLAGS and CXXFLAGS to activate the Zen 2 or 3 optimizations. By
-   default, if it detects and AMD cpu, it sets Zen 2 optimizations.
+--avx|--avx2|--knl|--avx512|--zen2|--zen3
+   Append flags in CFLAGS and CXXFLAGS to activate proper extensions in the compiler,
+   and set the QphiX isa.
 
 --std=c++11|c++14|c++20   
    Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
@@ -173,7 +163,7 @@ download_only="nop"
 do_cleaning="nop"
 use_float="nop"
 use_arch="cpu"
-use_avx512="nop"
+use_march=""
 use_pdf="nop"
 use_next="nop"
 use_superb="nop"
@@ -185,8 +175,6 @@ use_gmp=""
 use_cmake=""
 use_autoflags="yes"
 use_opt="opt"
-use_knl="nop"
-use_zen="nop"
 use_std=""
 do_export_env=""
 action="update"
@@ -224,10 +212,12 @@ for (( i=1 ; i<=n ; ++i )); do
 	--jit|--cuda) use_arch="cuda";;
 	--hip) use_arch="hip";;
 	--superb) use_superb="yes";;
-	--avx512) use_avx512="yes";use_zen="nop";;
-	--knl) use_knl="yes"; use_avx512="yes"; use_zen="nop";;
-	--zen2) use_knl="nop"; use_avx512="nop"; use_zen="zen2";;
-	--zen3) use_knl="nop"; use_avx512="nop"; use_zen="zen3";;
+	--avx) use_march="avx";;
+	--avx2) use_march="avx2";;
+	--avx512) use_march="avx512";;
+	--knl) use_march="knl";;
+	--zen2) use_march="zen2";;
+	--zen3) use_march="zen3";;
 	--mg) use_mg="yes";;
 	--next) use_next="yes";;
 	--clean) action="clean";do_cleaning="yes";;
@@ -348,7 +338,28 @@ detect_fortran_compiler() {
 }
 
 if [ ${use_autoflags} == yes ]; then
-	if [ ${use_knl} == yes ]; then
+	info "No CPU architecture given; guessing ..."
+	if [ x${use_march}x == xx ]; then
+		if grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
+			info "Detected AMD zen2"
+			use_march="zen2"
+		elif grep -q "cpu.*:.*POWER" /proc/cpuinfo ; then
+			info "Detected POWER architecture"
+			use_march="power"
+		elif grep -q "vendor_id.*GenuineIntel" /proc/cpuinfo ; then
+			if grep -q "avx512" /proc/cpuinfo ; then
+				info "Detected intel with avx512 support"
+				use_march="avx512"
+			elif grep -q "avx2" /proc/cpuinfo ; then
+				info "Detected intel with avx2 support"
+				use_march="avx2"
+			else
+				info "Detected intel with avx support"
+				use_march="avx"
+			fi
+		fi
+	fi
+	if [ ${use_march} == mkl ]; then
 		# Active special tricks for a special architecture
 		case "`detect_compiler`" in
 		icc)
@@ -360,8 +371,7 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
 			;;
 		esac
-		use_avx512="yes"
-	elif [ ${use_avx512} == yes ]; then
+	elif [ ${use_march} == avx512 ]; then
 		case "`detect_compiler`" in
 		icc)
 			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
@@ -372,42 +382,7 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
 			;;
 		esac
-	elif [ ${use_zen} == zen2 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xaCORE-AVX2"
-			CFLAGS+=" -xaCORE-AVX2"
-			;;
-		*)
-			CXXFLAGS+=" -march=znver2"
-			CFLAGS+=" -march=znver2"
-			;;
-		esac
-	elif [ ${use_zen} == zen3 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xaCORE-AVX2"
-			CFLAGS+=" -xaCORE-AVX2"
-			;;
-		*)
-			CXXFLAGS+=" -march=znver3"
-			CFLAGS+=" -march=znver3"
-			;;
-		esac
-	elif grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xaCORE-AVX2"
-			CFLAGS+=" -xaCORE-AVX2"
-			;;
-		*)
-			CXXFLAGS+=" -march=znver2"
-			CFLAGS+=" -march=znver2"
-			;;
-		esac
-	elif grep -q "cpu.*:.*POWER" /proc/cpuinfo ; then
-		echo Detected POWER architecture, no specific architecture flags set
-	else
+	elif [ ${use_march} == avx2 ]; then
 		case "`detect_compiler`" in
 		icc)
 			CXXFLAGS+=" -xCORE-AVX2"
@@ -418,6 +393,41 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -march=haswell -mavx2"
 			;;
 		esac
+	elif [ ${use_march} == avx ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX"
+			CFLAGS+=" -xCORE-AVX"
+			;;
+		*)
+			CXXFLAGS+=" -march=ivybridge -mavx"
+			CFLAGS+=" -march=ivybridge -mavx"
+			;;
+		esac
+	elif [ ${use_march} == zen2 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xaCORE-AVX2"
+			CFLAGS+=" -xaCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver2"
+			CFLAGS+=" -march=znver2"
+			;;
+		esac
+	elif [ ${use_march} == zen3 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xaCORE-AVX2"
+			CFLAGS+=" -xaCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver3"
+			CFLAGS+=" -march=znver3"
+			;;
+		esac
+	elif [ ${use_march} == power ]; then
+		info "Not setting specific architecture flags for POWER architecture"
 	fi
 	if ! ( echo ${CXXFLAGS} | grep -q openmp ); then
 		# QDP is compiled with OpenMP, so we need to add the flag
@@ -449,6 +459,9 @@ if [ ${use_autoflags} == yes ]; then
 	CXXFLAGS+=" -std=$use_std"
 	# Old versions of icc need this
 	CFLAGS+=" -std=c99"
+elif [ x${use_march}x = xx ] ; then
+	info "No architecture information given, just assuming AVX"
+	use_march="avx"
 fi
 
 # If the user gives BLAS options LDFLAGS or LIBS, use them.
@@ -1369,10 +1382,16 @@ if [ x${mugiq}x != xx ]; then
 fi
 
 if [ x${qphix}x != xx ]; then
-	qphix_install="${qphix_src}-${qdp_install}"
-	[ ${use_avx512} == yes ] && qphix_install="${qphix_src}-avx512"
-	qphix_isa="avx2"
-	[ ${use_avx512} == yes ] && qphix_isa="avx512"
+	case ${use_march} in
+	avx512|knl)     qphix_isa="avx512";;
+	avx2|zen2|zen3) qphix_isa="avx2";;
+	avx)            qphix_isa="avx" ;;
+	*)
+		info "Unsupported architecture for Qphix: $use_march"
+		exit 1
+		;;
+	esac
+	qphix_install="${qphix_src}-${qdp_install}-${qphix_isa}"
 	sdir="${srcdir}/${qphix_src}"
 	bdir="${builddir}/${qphix_install}"
 	idir="${installdir}/${qphix_install}"
