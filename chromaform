@@ -577,7 +577,7 @@ if [ x${use_thrust}x == xx ]; then
 	if [ x${thrust}x != xx ]; then
 		use_thrust="thrust"
 	elif [ $use_arch == hip ]; then
-		use_thrust="thrust"
+		use_thrust="thrust-system"
 	elif [ -d $CUDADIR/targets/*/include/cub -a -d $CUDADIR/targets/*/include/thrust ]; then
 		use_thrust="thrust-system"
 	else
@@ -644,7 +644,7 @@ if [ $use_arch != cpu -a x${laplace_eigs}${harom}x != xx ]; then
 fi
 [ $use_arch != cpu -a x${superbblas}${quda}x != xx -a $use_thrust == thrust ] && thrust="${thrust:-update}"
 [ x${thrust}x != xx -a $use_arch == cuda ] && cub="${cub:-update}"
-[ x${thrust}x != xx -a $use_arch == hip ] && prim="${prim:-update}"
+#[ x${thrust}x != xx -a $use_arch == hip ] && prim="${prim:-update}"
 if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	echo "Incompatible options: --thrust=system but also asking for compiling thrust"
 	exit 1
