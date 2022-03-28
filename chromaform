@@ -541,7 +541,7 @@ if [ x${use_cmake}x == xx ]; then
 		cmake_version="`cmake --version 2>&1  | grep "^cmake version" | tr . ' '`"
 		ver_maj="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_maj; done`"
 		ver_minor="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_minor; done`"
-		[ $(( ver_maj >= 3 && ver_minor >= 17 )) -eq 1 ] && use_cmake="cmake-system"
+		( [ $use_arch != hip -a $ver_maj -ge 3 -a $ver_minor -ge 17 ] || [ $use_arch == hip -a $ver_maj -ge 3 -a $ver_minor -ge 21 ] ) && use_cmake="cmake-system"
 	fi
 fi
 
@@ -673,7 +673,6 @@ if [ x${qdp}x != xx ]; then
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
-	[ $use_arch == hip ] && quda_src="quda-hip"
 	cpm_src="cpm"
 	#[ $use_next == yes ] && quda_src="quda-mugiq"
 fi
@@ -826,12 +825,11 @@ primme                 https://github.com/primme/primme                eloy/prim
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.6.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
 quda                   https://github.com/lattice/quda                 develop
-quda-hip               https://github.com/lattice/quda                 feature/hip-compile-fixes
 mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
-cmake                  https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
+cmake                  https://github.com/Kitware/CMake/releases/download/v3.22.3/cmake-3.22.3.tar.gz
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
@@ -1290,10 +1288,7 @@ if [ x${quda}x != xx ]; then
 				-DQUDA_TARGET_TYPE=HIP \
 				-DGPU_TARGETS=$AMDGPU_TARGETS \
 				-DMPI_C_COMPILER=${CC} \
-				-DMPI_CXX_COMPILER=${CXX} \
-				-DCMAKE_C_COMPILER=hipcc \
-				-DCMAKE_CXX_COMPILER=hipcc \
-			"
+				-DMPI_CXX_COMPILER=${CXX}"
 			# Avoid compiling issue in QUDA
 			quda_extra_args+=" -DQUDA_OPENMP=OFF"
 		fi
