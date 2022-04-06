@@ -240,7 +240,7 @@ cmake_extra=" \
         LDFLAGS="-L${cudadir_extra}/lib" \
         CMAKE_EXTRA_FLAGS="$cmake_extra"
 
-# Femto
+# Femto (W&M)
 module purge
 module load modules
 module load slurm
@@ -251,6 +251,12 @@ source /usr/local/intel-2019/mkl/bin/mklvars.sh intel64
 module load cmake
 export LD_LIBRARY_PATH=/usr/local/gcc-9.1.0/lib64:$LD_LIBRARY_PATH
 ./chromaform --mg --superb chroma
+
+# Cyclops (W&M)
+module load intel/2019
+module load intel/2019-mpi
+source ${MKLROOT}/bin/mklvars.csh intel64
+./chromaform --mg --superb chroma redstar CC=mpiicc CXX=mpiicpc
 
 # Navigator+
 module load OpenMPI
