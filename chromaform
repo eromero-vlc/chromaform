@@ -1125,7 +1125,7 @@ if [ x${gmp}x != xx ]; then
 fi
 
 if [ x${adat}x != xx ]; then
-	adat_install="adat"
+	adat_install="${adat_src}"
 	sdir="${srcdir}/${adat_src}"
 	bdir="${builddir}/${adat_install}"
 	idir="${installdir}/${adat_install}"
