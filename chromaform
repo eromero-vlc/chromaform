@@ -220,6 +220,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--zen3) use_march="zen3";;
 	--mg) use_mg="yes";;
 	--next) use_next="yes";;
+	--pdf) use_pdf="yes";;
 	--clean) action="clean";do_cleaning="yes";;
 	--install) action="install";;
 	--update) action="update";;
