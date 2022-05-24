@@ -360,7 +360,7 @@ if [ ${use_autoflags} == yes ]; then
 			fi
 		fi
 	fi
-	if [ ${use_march} == mkl ]; then
+	if [ ${use_march} == knl ]; then
 		# Active special tricks for a special architecture
 		case "`detect_compiler`" in
 		icc)
@@ -450,6 +450,7 @@ if [ ${use_autoflags} == yes ]; then
 		CFLAGS+=" -g3 -O0"
 		CXXFLAGS+=" -g3 -O0"
 		LDFLAGS+=" -g3 -O0"
+		CMAKE_EXTRA_FLAGS+=" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF"
 		;;
 	opt)
 		CFLAGS+=" -O3"
