@@ -632,8 +632,7 @@ fi
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
 [ $use_arch == cuda -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
-[ x${tensor}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
-[ x${primme}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
+[ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${primme}x != xx -a $use_arch == cuda ] && magma="${magma:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 if [ $use_blas != openblas -a x${openblas}x != xx ]; then
