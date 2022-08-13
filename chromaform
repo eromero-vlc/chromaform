@@ -167,6 +167,7 @@ use_march=""
 use_pdf="nop"
 use_next="nop"
 use_superb="nop"
+use_qdpjit="yes"
 use_mg="nop"
 use_llvm=""
 use_thrust=""
@@ -212,6 +213,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--jit|--cuda) use_arch="cuda";;
 	--hip) use_arch="hip";;
 	--superb) use_superb="yes";;
+	--qdpjit=no) use_qdpjit="no";;
 	--avx) use_march="avx";;
 	--avx2) use_march="avx2";;
 	--avx512) use_march="avx512";;
@@ -309,7 +311,7 @@ CXX="${CXX:-mpicxx}"
 if [ x${use_std}x == xx ]; then
 	use_std="c++14"
 	[ $use_arch == hip ] && use_std="c++20"
-	[ $use_arch == cuda -a $use_next == nop ] && use_std="c++20"
+	[ $use_arch == cuda -a $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
 fi
 
 detect_compiler() {
@@ -631,7 +633,7 @@ fi
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
-[ $use_arch == cuda -a x${qdp}x != xx -a $use_llvm == llvm ] && llvm="${llvm:-update}"
+[ $use_arch == cuda -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${primme}x != xx -a $use_arch == cuda ] && magma="${magma:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
@@ -669,8 +671,8 @@ fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
 	[ $use_arch == cuda -a $use_next == yes ] && qdp_src="qdp-jit-no-concepts"
-	[ $use_arch == cuda -a $use_next != yes ] && qdp_src="qdp-jit"
-	[ $use_arch == hip ] && qdp_src="qdp-jit"
+	[ $use_arch == cuda -a $use_next != yes -a $use_qdpjit == yes ] && qdp_src="qdp-jit"
+	[ $use_arch == hip -a $use_qdpjit == yes ] && qdp_src="qdp-jit"
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -1165,7 +1167,7 @@ fi
 
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
-	[ $use_arch != cpu ] && qmp_install="qmp-cmake"
+	[ $use_arch != cpu -a ${qdp_src} == qdp-jit ] && qmp_install="qmp-cmake"
 	sdir="${srcdir}/${qmp_src}"
 	bdir="${builddir}/${qmp_install}"
 	idir="${installdir}/${qmp_install}"
@@ -1177,7 +1179,7 @@ if [ x${qmp}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ $use_arch == cpu ]; then
+		if [ ${qmp_install} == qmp ]; then
 			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
 		else
 			run cmake \
@@ -1197,22 +1199,24 @@ if [ x${qdp}x != xx ]; then
 	qdp_prec="double"
 	[ ${use_float} == yes ] && qdp_prec="single"
 	sdir="${srcdir}/${qdp_src}"
-	if [ $do_cleaning == nop -a $use_arch == cuda ]; then
+	if [ $do_cleaning == nop -a $use_arch == cuda -a $qdp_src == qdp-jit ]; then
 		run rm -rf ${tmp}/h
 		run mkdir -p ${tmp}/h
 		run cp ${CUDADIR}/nvvm/libdevice/libdevice*bc ${tmp}/h/libdevice.bc
 		( cd $sdir && run bash ./pack_libdevice.sh ${tmp}/h )
 	fi
 	qdp_extra=""
-	case $use_arch in
-	cuda)
-		qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ENABLE_THRUST_ALIGNMENT=ON"
-		;;
-	hip)
-		qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS}"
-		;;
-	esac
-	if [ $use_arch != cpu ]; then
+	if [ $qdp_src == qdp-jit ]; then
+		case $use_arch in
+		cuda)
+			qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ENABLE_THRUST_ALIGNMENT=ON"
+			;;
+		hip)
+			qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS}"
+			;;
+		esac
+	fi
+	if [ $qdp_src == qdp-jit ]; then
         	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
 		13*) qdp_extra+=" -DQDP_ENABLE_LLVM13=ON" 
@@ -1231,7 +1235,7 @@ if [ x${qdp}x != xx ]; then
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
 			pushd $bdir
-			if [ $use_arch == cpu ]; then
+			if [ $qdp_src == qdpxx ]; then
 				run ${sdir}/configure \
 					--prefix=${idir} \
         				--enable-Nd=$qdp_nd \
@@ -1554,6 +1558,7 @@ if [ x${chroma}x != xx ]; then
 	else
 		chroma_install="${chroma_src}-${quda_install}"
 	fi
+	[ x${superbblas}x != xx ] && chroma_install+="-${superbblas_install}"
 	sdir="${srcdir}/${chroma_src}"
 	bdir="${builddir}/${chroma_install}"
 	idir="${installdir}/${chroma_install}"
@@ -1565,8 +1570,8 @@ if [ x${chroma}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ $use_arch == cpu ]; then
-			if [ $use_mg == yes ]; then
+		if [ $use_arch == cpu -o ${qdp_src} != qdp-jit ]; then
+			if [ x${mgproto}x != xx ]; then
 				chroma_extra="\
 			        	--with-qphix-solver=${installdir}/${qphix_install} \
 			        	--enable-qphix-solver-arch=${qphix_isa} \
@@ -1576,6 +1581,7 @@ if [ x${chroma}x != xx ]; then
 			        	--enable-qphix-solver-inner-soalen=8 \
 			        	--with-mg-proto=${installdir}/${mgproto_install}"
 			fi
+			[ ${use_arch} == cuda ] && chroma_extra+=" --with-cuda=${CUDADIR}"
 			[ x${primme}x != xx ] && chroma_extra+=" --with-primme=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 			[ $use_next == yes ] && sb_cxx_extra=" -I${srcdir}/math/include"
