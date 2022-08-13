@@ -249,6 +249,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	llvm) llvm="$action";;
 	cub) cub="$action";;
 	thrust) thrust="$action";;
+	hipsparse) hipsparse="$action";;
 	qmp) qmp="$action";;
 	qdp) qdp="$action";;
 	superbblas) superbblas="$action";;
@@ -652,6 +653,8 @@ fi
 
 [ x${llvm}${qphix}${mgproto}${quda}${mugiq}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
 
+[ x${hipsparse}x != xx ] && rocsparse="${rocsparse:-update}"
+
 [ x${gcc}x != xx -a x${mpfr}x == xx ] && mpfr="${mpfr:-update}"
 [ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
 [ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
@@ -713,6 +716,14 @@ if [ x${thrust}x != xx ]; then
 	[ $use_arch == cuda ] && thrust_src="thrust"
 	[ $use_arch == hip ] && thrust_src="rocThrust"
 fi
+if [ x${hipsparse}x != xx ]; then
+	if [ $use_arch != hip ] ; then
+		echo "Unsupported hipsparse without the flag --hip"
+		exit 1
+	fi
+	rocsparse_src="rocsparse"
+	hipsparse_src="hipsparse"
+fi
 if [ x${openblas}x != xx ]; then
 	openblas_src="openblas"
 fi
@@ -772,6 +783,8 @@ $llvm         $llvm_src
 $cub          $cub_src
 $prim         $prim_src
 $thrust       $thrust_src
+$rocsparse    $rocsparse_src
+$hipsparse    $hipsparse_src
 $openblas     $openblas_src
 $eigen        $eigen_src
 $primme       $primme_src
@@ -836,6 +849,8 @@ cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.ta
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
+rocsparse              https://github.com/ROCmSoftwarePlatform/rocSPARSE/archive/refs/tags/rocm-4.3.1.tar.gz
+hipsparse              https://github.com/ROCmSoftwarePlatform/hipSPARSE/archive/refs/tags/rocm-4.3.1.tar.gz
 openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
@@ -1023,6 +1038,74 @@ if [ x${thrust}x != xx ]; then
 	info "Doing ${thrust} thrust; source=$sdir"
 	if [ $do_cleaning == yes ]; then
 		[ ${thrust} == clean ] && rm -rf $sdir
+	fi
+fi
+
+if [ x${rocsparse}x != xx ]; then
+	rocsparse_install="rocsparse"
+	sdir="${srcdir}/${rocsparse_src}"
+	bdir="${builddir}/${rocsparse_install}"
+	idir="${installdir}/${rocsparse_install}"
+	info "Doing ${rocsparse} rocsparse; source=$sdir"
+	if [ $do_cleaning == yes ]; then
+		[ ${rocsparse} == clean ] && rm -rf $sdir
+	elif [ ${rocsparse} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		CXX=hipcc CXXFLAGS="" run cmake \
+			-DAMDGPU_TARGETS=${AMDGPU_TARGETS} \
+			-DCMAKE_BUILD_TYPE=Release -DCPACK_SET_DESTDIR=OFF \
+			-DCMAKE_INSTALL_PREFIX=${idir} ${CMAKE_EXTRA_FLAGS} \
+			$sdir
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
+		popd
+	fi
+	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LIBS+=" -L${idir}/lib"
+	CMAKE_EXTRA_FLAGS+=" -Drocsparse_DIR=${idir}/lib/cmake/rocsparse"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For rocsparse
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+	fi
+fi
+
+if [ x${hipsparse}x != xx ]; then
+	hipsparse_install="hipsparse"
+	sdir="${srcdir}/${hipsparse_src}"
+	bdir="${builddir}/${hipsparse_install}"
+	idir="${installdir}/${hipsparse_install}"
+	info "Doing ${hipsparse} hipsparse; source=$sdir"
+	if [ $do_cleaning == yes ]; then
+		[ ${hipsparse} == clean ] && rm -rf $sdir
+	elif [ ${hipsparse} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		CXX=hipcc CXXFLAGS="" run cmake \
+			-DAMDGPU_TARGETS=${AMDGPU_TARGETS} \
+			-DCMAKE_BUILD_TYPE=Release -DCPACK_SET_DESTDIR=OFF \
+			-DCMAKE_INSTALL_PREFIX=${idir} ${CMAKE_EXTRA_FLAGS} \
+			$sdir
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
+		popd
+	fi
+	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LIBS+=" -L${idir}/lib"
+	CMAKE_EXTRA_FLAGS+=" -Dhipsparse_DIR=${idir}/lib/cmake/hipsparse"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For hipsparse
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
 	fi
 fi
 
