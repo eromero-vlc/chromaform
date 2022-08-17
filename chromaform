@@ -168,6 +168,7 @@ use_pdf="nop"
 use_next="nop"
 use_superb="nop"
 use_qdpjit="yes"
+use_superb_next="nop"
 use_mg="nop"
 use_llvm=""
 use_thrust=""
@@ -214,6 +215,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--hip) use_arch="hip";;
 	--superb) use_superb="yes";;
 	--qdpjit=no) use_qdpjit="no";;
+	--superb-next) use_superb="yes";use_superb_next="yes";;
 	--avx) use_march="avx";;
 	--avx2) use_march="avx2";;
 	--avx512) use_march="avx512";;
@@ -310,8 +312,7 @@ CXX="${CXX:-mpicxx}"
 
 if [ x${use_std}x == xx ]; then
 	use_std="c++14"
-	[ $use_arch == hip ] && use_std="c++20"
-	[ $use_arch == cuda -a $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
+	[ $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
 fi
 
 detect_compiler() {
@@ -336,6 +337,8 @@ detect_fortran_compiler() {
 		compiler="gcc"
 	elif ( $FC -v 2>&1 | grep -q '^gcc version' ); then
 		compiler="gcc"
+	elif ( $FC -v 2>&1 | grep -q 'flang[^ ]* version' ); then
+		compiler="flang"
 	fi
 	echo $compiler
 }
@@ -564,7 +567,7 @@ if [ x${use_llvm}x == xx ]; then
     elif llvm-config --version &> /dev/null ; then
         llvm_ver="`llvm-config --version`"
         case $llvm_ver in
-	12*|13*) use_llvm="llvm-system" ;;
+	13*|14*) use_llvm="llvm-system" ;;
         *)       use_llvm="llvm";;
         esac
     else
@@ -633,7 +636,7 @@ fi
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
-[ $use_arch == cuda -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}"
+[ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${primme}x != xx -a $use_arch == cuda ] && magma="${magma:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
@@ -692,6 +695,7 @@ fi
 if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
 	[ $use_next == yes -a $use_arch != hip ] && chroma_src="chroma2"
+	[ $use_superb_next == yes ] && chroma_src="chroma-sp"
 fi
 if [ x${primme}x != xx ]; then
 	primme_src="primme"
@@ -724,6 +728,7 @@ if [ x${eigen}x != xx ]; then
 fi
 if [ x${superbblas}x != xx ]; then
 	superbblas_src="superbblas"
+	[ $use_superb_next == yes ] && superbblas_src="superbblas-sp"
 fi
 if [ x${adat}x != xx ]; then
 	adat_src="adat"
@@ -809,6 +814,8 @@ qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concep
 qmp                    https://github.com/usqcd-software/qmp           devel
 chroma                 https://github.com/JeffersonLab/chroma          devel
 chroma2                https://github.com/twLQCD/chroma.git            freqsplit_interp
+chroma-sp              https://github.com/JeffersonLab/chroma          eloy/mgproton-progress-blocking
+chroma                 https://github.com/JeffersonLab/chroma          devel
 qphix                  https://github.com/JeffersonLab/qphix           devel
 mgproto                https://github.com/JeffersonLab/mg_proto        devel
 mgproto2               https://github.com/twLQCD/mg_proto.git          reuse_prolong
@@ -827,6 +834,7 @@ laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.6.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
+superbblas-sp          https://github.com/eromero-vlc/superbblas       eloy/dense
 quda                   https://github.com/lattice/quda                 develop
 mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
@@ -839,7 +847,7 @@ cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.ta
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
-openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.13/OpenBLAS-0.3.13.tar.gz
+openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.21/OpenBLAS-0.3.21.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz
@@ -1055,6 +1063,7 @@ if [ x${openblas}x != xx ]; then
 	CXXFLAGS+=" -I${idir}/include"
 	LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
 	[ `detect_fortran_compiler` == gcc ] && LIBS+=" -lgfortran"
+	[ `detect_fortran_compiler` == flang ] && LIBS+=" -lpgmath -lflang -lflangrti -lm"
 fi
 
 case $use_blas in
@@ -1175,7 +1184,7 @@ if [ x${qmp}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${qmp} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${qmp} == install -o ! -d ${idir} ]; then
-		[ $use_arch != hip ] && ( cd $sdir && run autoreconf -f )
+		[ $use_arch != cpu ] && ( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -1219,7 +1228,7 @@ if [ x${qdp}x != xx ]; then
 	if [ $qdp_src == qdp-jit ]; then
         	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
-		13*) qdp_extra+=" -DQDP_ENABLE_LLVM13=ON" 
+		14*) qdp_extra+=" -DQDP_ENABLE_LLVM14=ON" 
         	esac
 	fi
 
@@ -1231,7 +1240,7 @@ if [ x${qdp}x != xx ]; then
 		if [ $do_cleaning == yes ]; then
 			[ ${qdp} == clean ] && rm -rf $sdir $bdir $idir
 		elif [ ${qdp} == install -o ! -d ${idir} ]; then
-			[ $use_arch != hip ] && ( cd $sdir && run autoreconf -f )
+			[ $qdp_src == qdpxx ] && ( cd $sdir && run autoreconf -f )
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
 			pushd $bdir
@@ -1485,6 +1494,7 @@ if [ x${superbblas}x != xx ]; then
 	superbblas_install="superbblas-cpu"
 	[ $use_arch == cuda ] && superbblas_install="superbblas-cuda"
 	[ $use_arch == hip ] && superbblas_install="superbblas-hip"
+	[ $use_superb_next == yes ] && superbblas_install+="-next"
 	sdir="${srcdir}/${superbblas_src}"
 	bdir="${builddir}/${superbblas_install}"
 	idir="${installdir}/${superbblas_install}"
@@ -1502,17 +1512,17 @@ if [ x${superbblas}x != xx ]; then
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_nvcc_extra"
 		elif [ $use_arch == hip ]; then
 			make_action="install_hip"
-			sb_cxx_extra="-I${srcdir}/${prim_src} -I${srcdir}/${thrust_src}"
 			hip_arch_flags="$( for arch in ${AMDGPU_TARGETS//;/ }; do echo -n "--offload-arch=$arch "; done )"
-			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include $hip_arch_flags"
+			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include -I`$HIPCONFIG -R`/rocsparse/include -I`$HIPCONFIG -R`/hipsparse/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
-		[ $use_arch == cuda -a $use_next == nop ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
-		run $MYMAKE -C ${bdir} -j $MAKE_JN  $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
+		[ $use_arch != cpu -a $use_next == nop ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
+		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
 	fi
-	# Add clang openmp dependency
-	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -l`/../lib -lomp"
+	# Add flags to compile and link with HIP runtime and to link with clang openmp
+	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C` -I`$HIPCONFIG -R`/include"
+	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lhipsparse -lrocsparse -lhipblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
 fi
 
 if [ x${mgproto}x != xx ]; then
@@ -1566,7 +1576,7 @@ if [ x${chroma}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${chroma} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${chroma} == install -o ! -d ${idir} ]; then
-		[ $use_arch != hip ] && ( cd $sdir && run autoreconf -f )
+		[ $use_arch != cpu ] && ( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
