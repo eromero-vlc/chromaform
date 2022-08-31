@@ -240,6 +240,12 @@ cmake_extra=" \
         LDFLAGS="-L${cudadir_extra}/lib" \
         CMAKE_EXTRA_FLAGS="$cmake_extra"
 
+# Polaris
+module swap PrgEnv-nvhpc PrgEnv-gnu
+module load nvhpc-mixed
+module load cmake
+./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80
+
 # Femto (W&M)
 module purge
 module load modules

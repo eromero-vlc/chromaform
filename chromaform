@@ -188,7 +188,14 @@ mymake() {
 
 MYMAKE="${MAKE:-mymake}"
 [ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
-[ x${CUDADIR}x == xx ] && CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
+if [ x${CUDADIR}x == xx ] ; then
+	CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
+	# If using NVHPC, point out the cuda directory
+	if [ x${CUDADIR}x != x${CUDADIR%compilers}x ] ; then
+		CUDADIR="$( realpath ${CUDADIR}/../cuda )"
+		CUDADIR_extra="$( realpath ${CUDADIR}/../math_libs )"
+	fi
+fi
 SM="${SM:-sm_70}"
 AMDGPU_TARGETS="${AMDGPU_TARGETS:-gfx900;gfx906;gfx908}"
 tmp="`mktemp -d`"
@@ -585,17 +592,31 @@ if [ x${use_thrust}x == xx ]; then
 		use_thrust="thrust"
 	elif [ $use_arch == hip ]; then
 		use_thrust="thrust-system"
-	elif [ -d $CUDADIR/targets/*/include/cub -a -d $CUDADIR/targets/*/include/thrust ]; then
+	elif [ -d $CUDADIR/targets/*/include/cub -a -d $CUDADIR/targets/*/include/thrust ] || [ -d $CUDADIR/include/cub -a -d $CUDADIR/include/thrust ]; then
 		use_thrust="thrust-system"
 	else
 		use_thrust="thrust"
 	fi
 fi
 
+# MAGMA and other packages have problems to find cuda libraries when using NVHPC; so we help them
+if [ x${CUDADIR_extra}x != xx ]; then
+	CMAKE_EXTRA_FLAGS+="
+		-DCUDA_cublas_LIBRARY=${CUDADIR_extra}/lib64/libcublas.so
+		-DCUDA_cublas_device_LIBRARY=${CUDADIR_extra}/lib64/libcublasLt.so
+		-DCUDA_cusolver_LIBRARY=${CUDADIR_extra}/lib64/libcusolver.so
+		-DCUDA_cusparse_LIBRARY=${CUDADIR_extra}/lib64/libcusparse.so
+		-DCUDA_nppi_LIBRARY=${CUDADIR_extra}/lib/lib64/libnppial.so"
+	CFLAGS+=" -I${cudadir_extra}/include" 
+	CXXFLAGS+=" -I${cudadir_extra}/include"
+	LDFLAGS+=" -L${cudadir_extra}/lib64"
+fi
+
 # Print basic variables
 
 info "Using PATH: $PATH"
 info "Using CUDADIR: $CUDADIR"
+info "Using CUDADIR_extra: $CUDADIR_extra"
 info "Using cmake: ${use_cmake}"
 info "Using llvm: ${use_llvm}"
 info "Using thrust: ${use_thrust}"
@@ -847,7 +868,7 @@ cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.ta
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
-openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.21/OpenBLAS-0.3.21.tar.gz
+openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.20/OpenBLAS-0.3.20.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz
@@ -1047,15 +1068,14 @@ if [ x${openblas}x != xx ]; then
 		[ ${openblas} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${openblas} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
-		run mkdir -p $bdir
+		run cp -r $sdir $bdir
 		pushd $bdir
 		(
 			# Setting CFLAGS avoid Openblas to set proper flags
 			unset CFLAGS
 			unset CXXFLAGS
-			run ${MYMAKE} -C ${sdir} clean
-			run ${MYMAKE} -C ${sdir} -j $MAKE_JN
-			run ${MYMAKE} -C ${sdir} install PREFIX=${idir}
+			run ${MYMAKE} -j $MAKE_JN USE_OPENMP=1
+			run ${MYMAKE} install PREFIX=${idir}
 		)
 		popd
 	fi
