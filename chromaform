@@ -1576,11 +1576,11 @@ if [ x${chroma}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${chroma} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${chroma} == install -o ! -d ${idir} ]; then
-		[ $use_arch != cpu ] && ( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
 		if [ $use_arch == cpu -o ${qdp_src} != qdp-jit ]; then
+			( cd $sdir && run autoreconf -f )
 			if [ x${mgproto}x != xx ]; then
 				chroma_extra="\
 			        	--with-qphix-solver=${installdir}/${qphix_install} \
