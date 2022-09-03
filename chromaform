@@ -607,9 +607,9 @@ if [ x${CUDADIR_extra}x != xx ]; then
 		-DCUDA_cusolver_LIBRARY=${CUDADIR_extra}/lib64/libcusolver.so
 		-DCUDA_cusparse_LIBRARY=${CUDADIR_extra}/lib64/libcusparse.so
 		-DCUDA_nppi_LIBRARY=${CUDADIR_extra}/lib/lib64/libnppial.so"
-	CFLAGS+=" -I${cudadir_extra}/include" 
-	CXXFLAGS+=" -I${cudadir_extra}/include"
-	LDFLAGS+=" -L${cudadir_extra}/lib64"
+	CFLAGS+=" -I${CUDADIR_extra}/include" 
+	CXXFLAGS+=" -I${CUDADIR_extra}/include"
+	LDFLAGS+=" -L${CUDADIR_extra}/lib64"
 fi
 
 # Print basic variables
