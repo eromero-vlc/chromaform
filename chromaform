@@ -1204,11 +1204,11 @@ if [ x${qmp}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${qmp} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${qmp} == install -o ! -d ${idir} ]; then
-		[ $use_arch != cpu ] && ( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
 		if [ ${qmp_install} == qmp ]; then
+			( cd $sdir && run autoreconf -f )
 			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
 		else
 			run cmake \
