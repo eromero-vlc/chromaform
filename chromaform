@@ -1533,7 +1533,7 @@ if [ x${superbblas}x != xx ]; then
 		elif [ $use_arch == hip ]; then
 			make_action="install_hip"
 			hip_arch_flags="$( for arch in ${AMDGPU_TARGETS//;/ }; do echo -n "--offload-arch=$arch "; done )"
-			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include -I`$HIPCONFIG -R`/rocsparse/include -I`$HIPCONFIG -R`/hipsparse/include $hip_arch_flags"
+			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include -I`$HIPCONFIG -R`/hipsparse/include -I`$HIPCONFIG -R`/hipsolver/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
@@ -1542,7 +1542,7 @@ if [ x${superbblas}x != xx ]; then
 	fi
 	# Add flags to compile and link with HIP runtime and to link with clang openmp
 	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C` -I`$HIPCONFIG -R`/include"
-	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lhipsparse -lrocsparse -lhipblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
+	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lhipsolver -lhipsparse -lhipblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
 fi
 
 if [ x${mgproto}x != xx ]; then
