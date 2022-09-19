@@ -319,7 +319,7 @@ CXX="${CXX:-mpicxx}"
 
 if [ x${use_std}x == xx ]; then
 	use_std="c++14"
-	[ $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
+	[ $use_arch != cpu -a $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
 fi
 
 detect_compiler() {
