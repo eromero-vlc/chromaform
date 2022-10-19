@@ -10,12 +10,14 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
+           [--libxml2=build|--libxml2=system]                                             \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
-           [openblas] [gmp]  [eigen] [qmp] [qdp] [superbblas] [primme] [magma] [mgproto]  \\
-           [qphix] [chroma] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]  \\
+           [openblas] [gmp] [libxml2] [eigen] [qmp] [qdp] [superbblas] [primme] [magma]   \\
+           [mgproto] [qphix] [quda] [chroma]                                              \\
+           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                   \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
 
@@ -66,7 +68,7 @@ Some packages have special optional features.
    - chroma: new disconnected diagram task based on frequency splitting.
    - colorvec/redstar: smearing elementals on the fly.
 
-* CMake, LLVM, BLAS:
+* CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
    which implementation to use.
 
@@ -98,6 +100,10 @@ Some packages have special optional features.
    downloads a recent version. By default, it detects if they have pkg-config
    configuration available.
 
+--libxml2=[build|system]
+   Use the libxml2 in the system if 'system' is given; otherwise, it
+   downloads a recent version. By default, it detects if they have pkg-config
+   configuration available.
 
 * Compilation flags:
 Control the flags use for building the packages.
@@ -174,6 +180,7 @@ use_llvm=""
 use_thrust=""
 use_blas=""
 use_gmp=""
+use_libxml2=""
 use_cmake=""
 use_autoflags="yes"
 use_opt="opt"
@@ -247,6 +254,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--blas=mkl) use_blas="mkl-system";;
 	--gmp=build) use_gmp="gmp";;
 	--gmp=system) use_gmp="gmp-system";;
+	--libxml2=build) use_libxml2="libxml2";;
+	--libxml2=system) use_libxml2="libxml2-system";;
 	--autoflags=no) use_autoflags="nop";;
 	--autoflags=yes) use_autoflags="yes";;
 	-g) use_opt="debug";;
@@ -319,7 +328,7 @@ CXX="${CXX:-mpicxx}"
 
 if [ x${use_std}x == xx ]; then
 	use_std="c++14"
-	[ $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
+	[ $use_arch != cpu -a $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
 fi
 
 detect_compiler() {
@@ -524,13 +533,13 @@ if [ x${use_gmp}x == xx ]; then
 			use_gmp="gmp"
 		elif pkg-config --libs gmpxx &> /dev/null ; then
 			use_gmp="gmp-system"
-			LIBS+=" `pkg-config --libs gmpxx`"
 		else
 			use_gmp="gmp"
 		fi
 		;;
 	esac
-elif [ ${use_gmp} == "gmp-system" ]; then
+fi
+if [ ${use_gmp} == "gmp-system" ]; then
 	case "$LDFLAGS $LIBS" in
 	*gmp*)
 		# Do nothing
@@ -541,6 +550,43 @@ elif [ ${use_gmp} == "gmp-system" ]; then
 	        else
 			# Wild guessing
 			LIBS+=" -lgmpxx -lgmp"
+		fi
+		;;
+	esac
+fi
+
+# Detect libxml2
+
+if [ x${use_libxml2}x == xx ]; then
+	info "No libxml2 suggestion give; detecting libxml2..."
+	case "$LDFLAGS $LIBS" in
+	*xml2*) use_libxml2="libxml2-system";;
+	*)
+		if [ x${libxml2}x != xx ]; then
+			use_libxml2="libxml2"
+		elif pkg-config --libs libxml-2.0 &> /dev/null ; then
+			use_libxml2="libxml2-system"
+		else
+			use_libxml2="libxml2"
+		fi
+		;;
+	esac
+fi
+if [ ${use_libxml2} == "libxml2-system" ]; then
+	case "$LDFLAGS $LIBS" in
+	*xml2*)
+		# Do nothing
+		;;
+	*)
+		if pkg-config --libs libxml-2.0 &> /dev/null ; then
+			CFLAGS+=" `pkg-config --cflags libxml-2.0`"
+			CXXFLAGS+=" `pkg-config --cflags libxml-2.0`"
+			LIBS+=" `pkg-config --libs libxml-2.0`"
+		else
+			# Wild guessing
+			CFLAGS+=" -I/usr/include/libxml2"
+			CXXFLAGS+=" -I/usr/include/libxml2"
+			LIBS+=" -lxml2"
 		fi
 		;;
 	esac
@@ -622,6 +668,7 @@ info "Using llvm: ${use_llvm}"
 info "Using thrust: ${use_thrust}"
 info "Using BLAS: ${use_blas}"
 info "Using GMP: ${use_gmp}"
+info "Using libxml2: ${use_libxml2}"
 info "Using CC=$CC"
 info "Using CFLAGS=$CFLAGS"
 info "Using CXX=$CXX"
@@ -674,6 +721,11 @@ fi
 #[ x${thrust}x != xx -a $use_arch == hip ] && prim="${prim:-update}"
 if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	echo "Incompatible options: --thrust=system but also asking for compiling thrust"
+	exit 1
+fi
+[ x${qdp}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
+if [ $use_libxml2 != libxml2 -a x${libxml2}x != xx ]; then
+	echo "Incompatible options: --libxml2=system but also asking for compiling libxml2"
 	exit 1
 fi
 
@@ -788,6 +840,9 @@ fi
 if [ x${gmp}x != xx ]; then
 	gmp_src="gmp"
 fi
+if [ x${libxml2}x != xx ]; then
+	libxml2_src="libxml2"
+fi
 if [ x${gcc}x != xx ]; then
 	gcc_src="gcc"
 	mpfr_src="mpfr"
@@ -822,6 +877,7 @@ $hadron       $hadron_src
 $harom        $harom_src
 $redstar      $redstar_src
 $gmp          $gmp_src
+$libxml2      $libxml2_src
 $gcc          $gcc_src
 $mpfr         $mpfr_src
 $isl          $isl_src
@@ -871,6 +927,7 @@ rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/r
 openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.20/OpenBLAS-0.3.20.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
+libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
 mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz
 gcc                    https://mirrors.concertpass.com/gcc/releases/gcc-10.1.0/gcc-10.1.0.tar.xz
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
@@ -1156,6 +1213,30 @@ if [ x${gmp}x != xx ]; then
 	LIBS+=" -L${idir}/lib -lgmpxx -lgmp"
 fi
 
+if [ x${libxml2}x != xx ]; then
+	libxml2_install="${libxml2_src}"
+	sdir="${srcdir}/${libxml2_src}"
+	bdir="${builddir}/${libxml2_install}"
+	idir="${installdir}/${libxml2_install}"
+	info "Doing ${libxml2} libxml2; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${libxml2} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${libxml2} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --disable-shared --enable-static --with-pic --without-python --without-http --without-html --without-lzma --without-zlib
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LIBS+=" -L${idir}/lib -lxml2"
+	LD_LIBRARY_PATH+=":${idir}"
+	PKG_CONFIG_PATH+=":${idir}/lib/pkgconfig"
+fi
+
+
 if [ x${adat}x != xx ]; then
 	adat_install="${adat_src}"
 	sdir="${srcdir}/${adat_src}"
@@ -1204,11 +1285,11 @@ if [ x${qmp}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${qmp} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${qmp} == install -o ! -d ${idir} ]; then
-		[ $use_arch != cpu ] && ( cd $sdir && run autoreconf -f )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
 		if [ ${qmp_install} == qmp ]; then
+			( cd $sdir && run autoreconf -f )
 			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
 		else
 			run cmake \
