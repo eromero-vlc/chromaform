@@ -166,13 +166,18 @@ commands.
 ## Examples on clusters:
 
 ```bash
-# Default environment at JLab
+# JLab's KNLs and qcdi140X
 module load cmake-3.13.4
 module load gcc-7.1.0
 source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.sh intel64
 export PATH=$PATH:/dist/intel/parallel_studio_2019/intelpython3/bin
 ./chromaform --mg --knl --superb chroma CC=mpiicc CXX=mpiicpc
 ./chromaform --knl redstar CC=mpiicc CXX=mpiicpc --gmp=system
+
+# JLab 21g (MI100)
+module load rocm/5.1.3
+module load mpi/openmpi-x86_64
+./chromaform --hip --mg --zen2 --superb chroma openblas CC=mpicc CXX=mpicxx MAKE_JN=30 AMDGPU_TARGETS='gfx906;gfx908' OMPI_CC=amdclang OMPI_CXX=amdclang++
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake

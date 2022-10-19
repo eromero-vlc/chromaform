@@ -861,7 +861,7 @@ mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
-cmake                  https://github.com/Kitware/CMake/releases/download/v3.22.3/cmake-3.22.3.tar.gz
+cmake                  https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2.tar.gz 
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
@@ -1249,6 +1249,10 @@ if [ x${qdp}x != xx ]; then
         	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
 		14*) qdp_extra+=" -DQDP_ENABLE_LLVM14=ON" 
+        	esac
+        	rocm_ver="`hipconfig --version`"
+        	case $rocm_ver in
+		5.*) qdp_extra+=" -DQDP_ROCM5FIX=ON" 
         	esac
 	fi
 
