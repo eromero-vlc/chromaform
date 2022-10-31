@@ -66,7 +66,6 @@ Some packages have special optional features.
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
    - chroma: new disconnected diagram task based on frequency splitting.
-   - colorvec/redstar: smearing elementals on the fly.
 
 * CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
@@ -237,7 +236,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--zen2) use_march="zen2";;
 	--zen3) use_march="zen3";;
 	--mg) use_mg="yes";;
-	--next) use_next="yes";;
+	--next) use_next="yes";use_superb="yes";use_superb_next="yes";;
 	--pdf) use_pdf="yes";;
 	--clean) action="clean";do_cleaning="yes";;
 	--install) action="install";;
@@ -269,6 +268,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	cmake) cmake="$action";;
 	llvm) llvm="$action";;
 	cub) cub="$action";;
+	boost) boost="$action";;
 	thrust) thrust="$action";;
 	qmp) qmp="$action";;
 	qdp) qdp="$action";;
@@ -328,7 +328,7 @@ CXX="${CXX:-mpicxx}"
 
 if [ x${use_std}x == xx ]; then
 	use_std="c++14"
-	[ $use_arch != cpu -a $use_next == nop -a $use_qdpjit == yes ] && use_std="c++20"
+	[ $use_arch != cpu -a $use_qdpjit == yes ] && use_std="c++20"
 fi
 
 detect_compiler() {
@@ -683,7 +683,7 @@ export CC CFLAGS CXX CXXFLAGS FC LDFLAGS LIBS
 if [ $use_arch == cpu ]; then
 	[ $use_mg == yes -a x${chroma}x != xx ] && mgproto="${mgproto:-update}"
 	[ x${mgproto}x != xx ] && qphix="${qphix:-update}"
-	[ $use_next == yes -a x${mgproto}x != xx ] && primme="${primme:-update}"
+	[ x${mgproto}x != xx ] && primme="${primme:-update}"
 else
 	[ $use_mg == yes -a x${chroma}x != xx ] && quda="${quda:-update}"
 	#[ $use_mg == yes -a $use_next == yes ] && mugiq="${mugiq:-update}"
@@ -691,6 +691,7 @@ fi
 [ x${quda}x != xx -a $use_arch == hip ] && cpm="${cpm:-update}"
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ x${chroma}x != xx -a $use_superb == yes ] && superbblas="${superbblas:-update}"
+[ x${chroma}x != xx -a $use_next == yes ] && boost="${boost:-update}"
 [ x${chroma}x != xx -a x${superbblas}x != xx ] && primme="${primme:-update}"
 [ x${mgproto}x != xx ] && primme="${primme:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
@@ -746,9 +747,7 @@ if [ x${qmp}x != xx ]; then
 fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
-	[ $use_arch == cuda -a $use_next == yes ] && qdp_src="qdp-jit-no-concepts"
-	[ $use_arch == cuda -a $use_next != yes -a $use_qdpjit == yes ] && qdp_src="qdp-jit"
-	[ $use_arch == hip -a $use_qdpjit == yes ] && qdp_src="qdp-jit"
+	[ $use_arch != cpu -a $use_qdpjit == yes ] && qdp_src="qdp-jit"
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -763,12 +762,14 @@ if [ x${qphix}x != xx ]; then
 fi
 if [ x${mgproto}x != xx ]; then
 	mgproto_src="mgproto"
-	[ $use_next == yes ] && mgproto_src="mgproto2"
 fi
 if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
-	[ $use_next == yes -a $use_arch != hip ] && chroma_src="chroma2"
-	[ $use_superb_next == yes ] && chroma_src="chroma-sp"
+	if [ $use_next == yes ]; then
+		chroma_src="chroma-fs-sp"
+	elif [ $use_superb_next == yes ]; then
+		chroma_src="chroma-sp"
+	fi
 fi
 if [ x${primme}x != xx ]; then
 	primme_src="primme"
@@ -781,7 +782,6 @@ if [ x${cmake}x != xx ]; then
 fi
 if [ x${llvm}x != xx ]; then
 	llvm_src="llvm-13"
-	[ $use_next == yes ] && llvm_src="llvm-11"
 fi
 if [ x${cub}x != xx ]; then
 	cub_src="cub"
@@ -810,11 +810,6 @@ fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
 	[ $use_pdf == yes ] && colorvec_src="colorvec-pdf"
-	[ $use_next == yes ] && colorvec_src="colorvec2"
-	if [ $use_next == yes -a $use_pdf == yes ]; then
-		echo "Unsupported options: --pdf and --next for colorvec"
-		exit 1
-	fi
 fi
 if [ x${tensor}x != xx ]; then
 	tensor_src="tensor"
@@ -828,11 +823,6 @@ fi
 if [ x${redstar}x != xx ]; then
 	redstar_src="redstar"
 	[ $use_pdf == yes ] && redstar_src="redstar-pdf"
-	[ $use_next == yes ] && redstar_src="redstar2"
-	if [ $use_next == yes -a $use_pdf == yes ]; then
-		echo "Unsupported options: --pdf and --next for redstar"
-		exit 1
-	fi
 fi
 if [ x${laplace_eigs}x != xx ]; then
 	laplace_eigs_src="laplace_eigs"
@@ -842,6 +832,9 @@ if [ x${gmp}x != xx ]; then
 fi
 if [ x${libxml2}x != xx ]; then
 	libxml2_src="libxml2"
+fi
+if [ x${boost}x != xx ]; then
+	boost_src="boost"
 fi
 if [ x${gcc}x != xx ]; then
 	gcc_src="gcc"
@@ -882,6 +875,7 @@ $gcc          $gcc_src
 $mpfr         $mpfr_src
 $isl          $isl_src
 $mpc          $mpc_src
+$boost        $boost_src
 EOF
 do
         cat << EOF | while read name repo branch
@@ -890,8 +884,8 @@ qdp-jit                https://github.com/JeffersonLab/qdp-jit         devel
 qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concepts
 qmp                    https://github.com/usqcd-software/qmp           devel
 chroma                 https://github.com/JeffersonLab/chroma          devel
-chroma2                https://github.com/twLQCD/chroma.git            freqsplit_interp
 chroma-sp              https://github.com/JeffersonLab/chroma          eloy/mgproton-progress-blocking
+chroma-fs-sp           https://github.com/twLQCD/chroma.git            travis/mgproton-progress-blocking-fs
 chroma                 https://github.com/JeffersonLab/chroma          devel
 qphix                  https://github.com/JeffersonLab/qphix           devel
 mgproto                https://github.com/JeffersonLab/mg_proto        devel
@@ -932,6 +926,7 @@ mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz
 gcc                    https://mirrors.concertpass.com/gcc/releases/gcc-10.1.0/gcc-10.1.0.tar.xz
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
+boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -943,10 +938,10 @@ EOF
 		info "Downloading $proj"
 		run rm -rf $srcdir/$proj $tmp/{d,d.zip,d.bz2,d.xz,d.gz}
 		case $repo in
-		*zip) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.zip && unzip $tmp/d.zip -d $tmp/d && mv $tmp/d/* $srcdir/$proj;;
-		*bz2) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.bz2 && tar xjf $tmp/d.bz2 -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
-		*gz) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.gz && tar xzf $tmp/d.gz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
-		*xz) mkdir $tmp/d && run wget -q "$repo" -O $tmp/d.xz && tar xJf $tmp/d.xz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*zip) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.zip && unzip $tmp/d.zip -d $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*bz2) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.bz2 && tar xjf $tmp/d.bz2 -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*gz) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.gz && tar xzf $tmp/d.gz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
+		*xz) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.xz && tar xJf $tmp/d.xz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
 		*git*) ( GIT_ASKPASS=w run git clone --recursive $repo -b $branch $srcdir/$proj ) || GIT_ASKPASS=w run git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} -b $branch $srcdir/$proj;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
@@ -1150,6 +1145,14 @@ case $use_blas in
 esac
 CMAKE_EXTRA_FLAGS="-DBLA_STATIC=ON -DBLA_VENDOR=$blas $cmake_blas_extra $CMAKE_EXTRA_FLAGS" 
 
+if [ x${boost}x != xx ]; then
+	boost_install="boost"
+	sdir="${srcdir}/${boost_src}"
+	info "Doing ${boost} boost; source=$sdir"
+	if [ $do_cleaning == yes ]; then
+		[ ${boost} == clean ] && rm -rf $sdir
+	fi
+fi
 
 if [ x${tensor}x != xx ]; then
 	tensor_install="tensor"
@@ -1699,7 +1702,7 @@ if [ x${chroma}x != xx ]; then
 			[ ${use_arch} == cuda ] && chroma_extra+=" --with-cuda=${CUDADIR}"
 			[ x${primme}x != xx ] && chroma_extra+=" --with-primme=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
-			[ $use_next == yes ] && sb_cxx_extra=" -I${srcdir}/math/include"
+			[ $use_next == yes -a x${boost}x != xx ] && chroma_extra+=" --with-boost=${srcdir}/${boost_install}"
 			run ${sdir}/configure \
 				--prefix=${idir} \
 				--with-qdp=${installdir}/${qdp_install} \
@@ -1717,6 +1720,7 @@ if [ x${chroma}x != xx ]; then
 			[ x${magma}x != xx ] && chroma_extra+=" -DChroma_ENABLE_MAGMA=ON -DMAGMA_DIR=${installdir}/${magma_install}"
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
+			[ $use_next == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
