@@ -264,12 +264,12 @@ for (( i=1 ; i<=n ; ++i )); do
 	--c++14) use_std="c++14";;
 	--c++20) use_std="c++20";;
 	--env=*) do_export_env="${arg#--env=}";;
-	openblas) openblas="$action";;
-	cmake) cmake="$action";;
-	llvm) llvm="$action";;
+	openblas) openblas="$action";use_blas="openblas";;
+	cmake) cmake="$action";use_cmake="cmake";;
+	llvm) llvm="$action";use_llvm="llvm";;
 	cub) cub="$action";;
 	boost) boost="$action";;
-	thrust) thrust="$action";;
+	thrust) thrust="$action";use_thrust="thrust";;
 	qmp) qmp="$action";;
 	qdp) qdp="$action";;
 	superbblas) superbblas="$action";;
@@ -287,6 +287,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	hadron) hadron="$action";;
 	harom) harom="$action";;
 	redstar) redstar="$action";;
+	libxml2) libxml2="$action";use_libxml2="libxml2";;
 	gcc) gcc="$action";;
 	*=*) export ${arg%%=*}="${arg#*=}";;
 	--help|-h) echo "$hlp_msg"; exit 0;;
@@ -1457,6 +1458,9 @@ if [ x${quda}x != xx ]; then
 			${CMAKE_EXTRA_FLAGS} \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
+
+		# Avoid QUDA injecting HIP language into anything linked with it
+		[ $use_arch == hip ] && sed -i 's/;HIP//' ${idir}/lib/cmake/QUDA/QUDATargets-release.cmake
 		popd
 	fi
 fi
@@ -1721,6 +1725,7 @@ if [ x${chroma}x != xx ]; then
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
 			[ $use_next == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
+			[ ${use_arch} == hip ] && chroma_extra+=" -DCMAKE_HIP_COMPILER=$CXX -DCMAKE_HIP_COMPILER_FORCED=ON"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
