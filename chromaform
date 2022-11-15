@@ -14,9 +14,9 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
-           [--clean|--install|--update|--download-only] [cmake] [llvm] [cub] [thrust]     \\
-           [openblas] [gmp] [libxml2] [eigen] [qmp] [qdp] [superbblas] [primme] [magma]   \\
-           [mgproto] [qphix] [quda] [chroma]                                              \\
+           [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
+           [cmake] [llvm] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen] [qmp] [qdp]   \\
+           [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]                \\
            [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                   \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
@@ -289,6 +289,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	redstar) redstar="$action";;
 	libxml2) libxml2="$action";use_libxml2="libxml2";;
 	gcc) gcc="$action";;
+	openmpi) openmpi="$action";;
+	mvapich2) mvapich2="$action";;
 	*=*) export ${arg%%=*}="${arg#*=}";;
 	--help|-h) echo "$hlp_msg"; exit 0;;
 	*) echo "Sorry! Unsupported option '$arg'"; echo "$hlp_msg"; exit 1;;
@@ -319,11 +321,16 @@ check_success() {
 	[ $last_status -ne 0 ] && exit $last_status
 }
 
-
 # Set default compilers
-
-CC="${CC:-mpicc}"
-CXX="${CXX:-mpicxx}"
+if [ x${openmpi}x == xx -a x${mvapich2}x == xx ]; then
+	CC="${CC:-mpicc}"
+	CXX="${CXX:-mpicxx}"
+else
+	if [ x${CXX} == xmpicxx -o x${CC} == xmpicc ]; then
+		echo "When compiling openmpi or mvapich2, please set \$CC and \$CXX to something else other than mpicc and mpicxx"
+		exit 1
+	fi
+fi
 
 # Add extra flags
 
@@ -480,9 +487,15 @@ if [ ${use_autoflags} == yes ]; then
 		LDFLAGS+=" -O3"
 		;;
 	esac
-	CXXFLAGS+=" -std=$use_std"
+	case "$CXXFLAGS" in
+	*-std=*) ;;
+	*) CXXFLAGS+=" -std=$use_std" ;;
+	esac
 	# Old versions of icc need this
-	CFLAGS+=" -std=c99"
+	case "$CFLAGS" in
+	*-std=*) ;;
+	*) CFLAGS+=" -std=c99" ;;
+	esac
 elif [ x${use_march}x = xx ] ; then
 	info "No architecture information given, just assuming AVX"
 	use_march="avx"
@@ -736,6 +749,7 @@ fi
 [ x${gcc}x != xx -a x${mpfr}x == xx ] && mpfr="${mpfr:-update}"
 [ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
 [ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
+[ x${openmpi}x != xx -a x${ucx}x == xx ] && ucx="${ucx:-update}"
 
 # Download
 
@@ -843,6 +857,17 @@ if [ x${gcc}x != xx ]; then
 	isl_src="isl"
 	mpc_src="mpc"
 fi
+if [ x${openmpi}x != xx ]; then
+	openmpi_src="openmpi"
+fi
+if [ x${ucx}x != xx ]; then
+	ucx_src="ucx"
+fi
+if [ x${mvapich2}x != xx ]; then
+	mvapich2_src="mvapich2"
+fi
+
+
 
 cat << EOF | while read act proj
 $cmake        $cmake_src
@@ -877,6 +902,9 @@ $mpfr         $mpfr_src
 $isl          $isl_src
 $mpc          $mpc_src
 $boost        $boost_src
+$openmpi      $openmpi_src
+$ucx          $ucx_src
+$mvapich2     $mvapich2_src
 EOF
 do
         cat << EOF | while read name repo branch
@@ -928,6 +956,10 @@ gcc                    https://mirrors.concertpass.com/gcc/releases/gcc-10.1.0/g
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
+ucx                    https://github.com/openucx/ucx/releases/download/v1.13.1/ucx-1.13.1.tar.gz
+openmpi                https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.4.tar.bz2
+openmpi5               https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.0rc9.tar.gz
+mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -1002,6 +1034,135 @@ if [ x${gcc}x != xx ]; then
 export LD_LIBRARY_PATH="$idir/lib:$idir/lib64:$libexec_gcc:\$LD_LIBRARY_PATH"
 export PATH="$idir/bin:\$PATH"
 EOF
+	fi
+fi
+
+
+if [ x${ucx}x != xx ]; then
+	ucx_install="ucx"
+	sdir="${srcdir}/${ucx_src}"
+	bdir="${builddir}/${ucx_install}"
+	idir="${installdir}/${ucx_install}"
+	info "Doing ${ucx} ucx; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${ucx} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${ucx} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		case $use_opt in
+		debug) ucx_extra="--enable-debug --enable-logging --enable-assertions --enable-params-check --disable-optimizations" ;;
+		opt) ucx_extra="--disable-debug --disable-logging --disable-assertions --disable-params-check --enable-optimizations" ;;
+		esac
+		case $use_arch in
+		cpu) ;;
+		cuda) ucx_extra+=" --with-cuda=$CUDADIR" ;;
+		hip) ucx_extra+="" ;;
+		esac
+		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --without-java --enable-cma --with-verbs --without-xpmem --disable-doxygen-doc $ucx_extra
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
+		popd
+	fi
+	export PATH=$idir/bin:$PATH
+	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For ucx
+export PATH="$idir/bin:\$PATH"
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+	fi
+fi
+
+if [ x${openmpi}x != xx ]; then
+	openmpi_install="openmpi"
+	sdir="${srcdir}/${openmpi_src}"
+	bdir="${builddir}/${openmpi_install}"
+	idir="${installdir}/${openmpi_install}"
+	info "Doing ${openmpi} openmpi; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${openmpi} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${openmpi} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		case $use_opt in
+		debug) openmpi_extra="--enable-debug" ;;
+		opt) openmpi_extra="--disable-debug" ;;
+		esac
+		case $use_arch in
+		cpu) ;;
+		cuda)
+			libcuda_path="`find $CUDADIR -name libcuda.so | head -1`"
+			inccudart_path="`find $CUDADIR -name cuda_runtime_api.h | head -1`"
+			libcudart_path="`find $CUDADIR -name libcudart.so | head -1`"
+			openmpi_extra+=" --with-cuda=$CUDADIR --with-cuda-libdir=`dirname $libcuda_path` --enable-mca-dso=btl-smcuda,rcache-rgpusm,rcache-gpusm,accelerator-cuda CPPFLAGS=-I`dirname $inccudart_path` LDFLAGS=-L`dirname $libcudart_path`" ;;
+		hip) openmpi_extra+="" ;;
+		esac
+		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --with-ucx=${installdir}/${ucx_install} --enable-mca-no-build=btl-uct --with-orte=no --disable-oshmem $openmpi_extra
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
+		popd
+	fi
+	export PATH=$idir/bin:$PATH
+	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+	[ x${CC}x != xx ] && export OMPI_CC=$CC
+	[ x${CXX}x != xx ] && export OMPI_CXX=$CXX
+	[ x${FC}x != xx ] && export OMPI_FC=$FC
+	export CC=mpicc
+	export CXX=mpicxx
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For openmpi
+export PATH="$idir/bin:\$PATH"
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+		[ x${OMPI_CC}x != xx ] && echo export OMPI_CC=$OMPI_CC >> $do_export_env
+		[ x${OMPI_CXX}x != xx ] && echo export OMPI_CXX=$OMPI_CXX >> $do_export_env
+		[ x${OMPI_FC}x != xx ] && echo export OMPI_FC=$OMPI_FC >> $do_export_env
+	fi
+fi
+
+if [ x${mvapich2}x != xx ]; then
+	mvapich2_install="mvapich2"
+	sdir="${srcdir}/${mvapich2_src}"
+	bdir="${builddir}/${mvapich2_install}"
+	idir="${installdir}/${mvapich2_install}"
+	info "Doing ${mvapich2} openmpi; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${mvapich2} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${mvapich2} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		case $use_arch in
+		cpu) mvapich2_extra="" ;;
+		cuda)
+			mvapich2_extra="--with-cuda=$CUDADIR" ;;
+		hip) mvapich2_extra="" ;;
+		esac
+		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --enable-fast=all $mvapich2_extra
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
+		popd
+	fi
+	export PATH=$idir/bin:$PATH
+	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+	[ x${CC}x != xx ] && export MPICH_CC=$CC
+	[ x${CXX}x != xx ] && export MPICH_CXX=$CXX
+	[ x${FC}x != xx ] && export MPICH_FC=$FC
+	export CC=mpicc
+	export CXX=mpicxx
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For mvapich2
+export PATH="$idir/bin:\$PATH"
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+		[ x${MPICH_CC}x != xx ] && echo export MPICH_CC=$MPICH_CC >> $do_export_env
+		[ x${MPICH_CXX}x != xx ] && echo export MPICH_CXX=$MPICH_CXX >> $do_export_env
+		[ x${MPICH_FC}x != xx ] && echo export MPICH_FC=$MPICH_FC >> $do_export_env
 	fi
 fi
 
