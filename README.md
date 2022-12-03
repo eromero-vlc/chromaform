@@ -236,7 +236,9 @@ module load cmake
 
 # Perlmutter GPU
 module load cmake
-./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/22.5/math_libs
+# NOTE: avoid QUDA issue with CUDA 11.7 https://github.com/lattice/quda/issues/1307
+module load cudatoolkit/11.4
+./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/21.9/math_libs
 
 # Polaris
 module swap PrgEnv-nvhpc PrgEnv-gnu
