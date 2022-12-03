@@ -1782,6 +1782,8 @@ if [ x${superbblas}x != xx ]; then
 			make_action="install_cuda"
 			[ x${thrust}x != xx ] && sb_nvcc_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
 			[ $use_next == nop ] && sb_nvcc_extra+=" -std=c++14"
+			[ $use_opt == debug ] && sb_nvcc_extra+=" -G"
+			[ $use_opt == opt ] && sb_nvcc_extra+=" -O3"
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_nvcc_extra"
 		elif [ $use_arch == hip ]; then
 			make_action="install_hip"
