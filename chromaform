@@ -739,6 +739,7 @@ if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	exit 1
 fi
 [ x${qdp}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
+[ x${adat}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
 if [ $use_libxml2 != libxml2 -a x${libxml2}x != xx ]; then
 	echo "Incompatible options: --libxml2=system but also asking for compiling libxml2"
 	exit 1
@@ -1296,6 +1297,7 @@ if [ x${openblas}x != xx ]; then
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
 	LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
+	LDFLAGS+=" -L${idir}/lib"
 	[ `detect_fortran_compiler` == gcc ] && LIBS+=" -lgfortran"
 	[ `detect_fortran_compiler` == flang ] && LIBS+=" -lpgmath -lflang -lflangrti -lm"
 fi
@@ -1399,6 +1401,7 @@ if [ x${libxml2}x != xx ]; then
 	LIBS+=" -L${idir}/lib -lxml2"
 	LD_LIBRARY_PATH+=":${idir}"
 	PKG_CONFIG_PATH+=":${idir}/lib/pkgconfig"
+	PATH+=":${idir}/bin"
 fi
 
 
