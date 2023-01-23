@@ -545,7 +545,7 @@ if [ x${use_gmp}x == xx ]; then
 	*)
 		if [ x${gmp}x != xx ]; then
 			use_gmp="gmp"
-		elif pkg-config --libs gmpxx &> /dev/null ; then
+		elif pkg-config --libs gmpxx &> /dev/null || [ -f /usr/include/gmpxx.h ]; then
 			use_gmp="gmp-system"
 		else
 			use_gmp="gmp"
@@ -1445,7 +1445,9 @@ fi
 
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
-	[ $use_arch != cpu -a ${qdp_src} == qdp-jit ] && qmp_install="qmp-cmake"
+	use_qmp_cmake="nop"
+	[ ${qdp_src} == qdp-jit -o x${quda}x != xx ] && use_qmp_cmake="yes"
+	[ ${use_qmp_cmake} == yes ] && qmp_install="qmp-cmake"
 	sdir="${srcdir}/${qmp_src}"
 	bdir="${builddir}/${qmp_install}"
 	idir="${installdir}/${qmp_install}"
@@ -1504,20 +1506,23 @@ if [ x${qdp}x != xx ]; then
 		5.*) qdp_extra+=" -DQDP_ROCM5FIX=ON" 
         	esac
 	fi
+	use_qdp_cmake="nop"
+	[ ${qdp_src} == qdp-jit -o x${quda}x != xx ] && use_qdp_cmake="yes"
 
 	for qdp_nd in 3 4 ; do
 		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
+		[ ${use_qdp_cmake} == yes ] && qdp_install+="-cmake"
 		bdir="${builddir}/${qdp_install}"
 		idir="${installdir}/${qdp_install}"
 		info "Doing ${qdp} QDP nd=$qdp_nd; source=$sdir build=$bdir install=$idir"
 		if [ $do_cleaning == yes ]; then
 			[ ${qdp} == clean ] && rm -rf $sdir $bdir $idir
 		elif [ ${qdp} == install -o ! -d ${idir} ]; then
-			[ $qdp_src == qdpxx ] && ( cd $sdir && run autoreconf -f )
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
 			pushd $bdir
-			if [ $qdp_src == qdpxx ]; then
+			if [ $qdp_src == qdpxx -a ${use_qdp_cmake} == nop ]; then
+				[ $qdp_src == qdpxx ] && ( cd $sdir && run autoreconf -f )
 				run ${sdir}/configure \
 					--prefix=${idir} \
         				--enable-Nd=$qdp_nd \
@@ -1546,7 +1551,9 @@ if [ x${qdp}x != xx ]; then
 		fi
 	done
 	qdp_install="${qdp_src}-${qdp_prec}-nd4"
+	[ ${use_qdp_cmake} == yes ] && qdp_install+="-cmake"
 	qdp3d_install="${qdp_src}-${qdp_prec}-nd3"
+	[ ${use_qdp_cmake} == yes ] && qdp3d_install+="-cmake"
 fi
 
 if [ x${quda}x != xx ]; then
@@ -1574,17 +1581,17 @@ if [ x${quda}x != xx ]; then
 			quda_extra_args="\
 				-DQUDA_TARGET_TYPE=HIP \
 				-DGPU_TARGETS=$AMDGPU_TARGETS \
+				-DAMDGPU_TARGETS=$AMDGPU_TARGETS \
+				-DQUDA_GPU_ARCH=$AMDGPU_TARGETS \
 				-DMPI_C_COMPILER=${CC} \
 				-DMPI_CXX_COMPILER=${CXX}"
 			# Avoid compiling issue in QUDA
 			quda_extra_args+=" -DQUDA_OPENMP=OFF"
 		fi
-		quda_extra_args+="\
-			-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
-			-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
-			-DQIO_DIR=${installdir}/${qdp_install}/lib/cmake/QIO \
-			-DCLime_DIR=${installdir}/${qdp_install}/lib/cmake/CLime \
-		"
+		quda_extra_args+=" -DQUDA_QMP=ON -DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP"
+		[ $qdp_src == qdp-jit ] && quda_extra_args+=" -DQUDA_QDPJIT=ON -DQUDA_INTERFACE_QDPJIT=ON"
+		quda_extra_args+=" -DQUDA_INTERFACE_QDP=ON -DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX"
+
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -1601,15 +1608,10 @@ if [ x${quda}x != xx ]; then
 			-DQUDA_FORCE_HISQ=OFF \
 			-DQUDA_GAUGE_ALG=OFF \
 			-DQUDA_GAUGE_TOOLS=OFF \
-			-DQUDA_INTERFACE_QDPJIT=ON \
-			-DQUDA_QDPJIT=ON \
 			-DQUDA_INTERFACE_MILC=OFF \
 			-DQUDA_INTERFACE_CPS=OFF \
-			-DQUDA_INTERFACE_QDP=ON \
 			-DQUDA_INTERFACE_TIFR=OFF \
 			-DQUDA_MAGMA=OFF	\
-			-DQUDA_QMP=ON \
-			-DQUDA_QIO=ON \
 			-DQUDA_MULTIGRID=ON \
 			-DQUDA_MAX_MULTI_BLAS_N=9 \
 			-DQUDA_DOWNLOAD_EIGEN=NO \
@@ -1857,7 +1859,7 @@ if [ x${chroma}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ $use_arch == cpu -o ${qdp_src} != qdp-jit ]; then
+		if [ ${use_qdp_cmake} == nop ]; then
 			( cd $sdir && run autoreconf -f )
 			if [ x${mgproto}x != xx ]; then
 				chroma_extra="\
@@ -1887,6 +1889,7 @@ if [ x${chroma}x != xx ]; then
 				-DChroma_ENABLE_QUDA=ON \
 				-DQUDA_DIR=${installdir}/${quda_install}/lib/cmake/QUDA \
 				"
+			[ $qdp_src == qdp-jit ] && chroma_extra+=" -DChroma_ENABLE_JIT_CLOVER=ON"
 			[ x${magma}x != xx ] && chroma_extra+=" -DChroma_ENABLE_MAGMA=ON -DMAGMA_DIR=${installdir}/${magma_install}"
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
@@ -1898,7 +1901,6 @@ if [ x${chroma}x != xx ]; then
 				-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS $LIBS" \
 				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
 				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
-				-DChroma_ENABLE_JIT_CLOVER=ON \
 				-DBLAS_SUFFIX_LINK_FLAGS="$LIBS $chroma_extra_blas" \
 				$chroma_extra \
 				${CMAKE_EXTRA_FLAGS} \
