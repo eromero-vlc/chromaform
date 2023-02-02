@@ -1503,7 +1503,7 @@ if [ x${qdp}x != xx ]; then
         	esac
         	rocm_ver="`hipconfig --version`"
         	case $rocm_ver in
-		5.*) qdp_extra+=" -DQDP_ROCM5FIX=ON" 
+		5.1*) qdp_extra+=" -DQDP_ROCM5FIX=ON" 
         	esac
 	fi
 	use_qdp_cmake="nop"
