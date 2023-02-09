@@ -343,10 +343,12 @@ detect_compiler() {
 	compiler="any"
 	if [ x${gcc}x != xx ]; then
 		compiler="gcc"
-	elif ( $CXX -v 2>&1 | grep -q '^gcc version' ); then
+	elif ( $CXX --version 2>&1 | grep -q '^gcc version' ); then
 		compiler="gcc"
-	elif ( $CXX -v 2>&1 | grep -q '^clang version' ); then
+	elif ( $CXX --version 2>&1 | grep -q '^clang version' ); then
 		compiler="clang"
+	elif ( $CXX --version 2>&1 | grep -q '^nvc' ); then
+		compiler="nvc"
 	elif ( $CXX -v 2>&1 | grep -q '^icc version' ); then
 		compiler="icc"
 	elif ( $CXX -v 2>&1 | grep -q '^icpc version' ); then
@@ -359,9 +361,11 @@ detect_fortran_compiler() {
 	compiler="any"
 	if [ x${gcc}x != xx -o x${FC}x == xx ]; then
 		compiler="gcc"
-	elif ( $FC -v 2>&1 | grep -q '^gcc version' ); then
+	elif ( $FC --version 2>&1 | grep -q '^gcc version' ); then
 		compiler="gcc"
-	elif ( $FC -v 2>&1 | grep -q 'flang[^ ]* version' ); then
+	elif ( $FC --version 2>&1 | grep -q '^nvfortran' ); then
+		compiler="nvc"
+	elif ( $FC --version 2>&1 | grep -q 'flang[^ ]* version' ); then
 		compiler="flang"
 	fi
 	echo $compiler
@@ -523,7 +527,7 @@ if [ x${use_blas}x == xx ]; then
 			use_blas="openblas-system"
 			CFLAGS+=" `pkg-config --cflags openblas`"
 			CXXFLAGS+=" `pkg-config --cflags openblas`"
-			LIBS+=" `pkg-config --libs openblas`"
+			LIBS+=" `pkg-config --libs --static openblas`"
 		elif pkg-config --cflags atlas ; then
 			use_blas="atlas-system"
 			CFLAGS+=" `pkg-config --cflags atlas`"
@@ -933,7 +937,7 @@ colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
-magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.6.1.tar.gz
+magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.0.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
 superbblas-sp          https://github.com/eromero-vlc/superbblas       eloy/dense
 quda                   https://github.com/lattice/quda                 develop
@@ -1101,7 +1105,7 @@ if [ x${openmpi}x != xx ]; then
 			openmpi_extra+=" --with-cuda=$CUDADIR --with-cuda-libdir=`dirname $libcuda_path` --enable-mca-dso=btl-smcuda,rcache-rgpusm,rcache-gpusm,accelerator-cuda CPPFLAGS=-I`dirname $inccudart_path` LDFLAGS=-L`dirname $libcudart_path`" ;;
 		hip) openmpi_extra+="" ;;
 		esac
-		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --with-ucx=${installdir}/${ucx_install} --enable-mca-no-build=btl-uct --with-orte=no --disable-oshmem $openmpi_extra
+		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --with-ucx=${installdir}/${ucx_install} --enable-mca-no-build=btl-uct --disable-oshmem $openmpi_extra
 		run ${MYMAKE} -j $MAKE_JN
 		run ${MYMAKE} install
 		popd
@@ -1299,6 +1303,7 @@ if [ x${openblas}x != xx ]; then
 	LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
 	LDFLAGS+=" -L${idir}/lib"
 	[ `detect_fortran_compiler` == gcc ] && LIBS+=" -lgfortran"
+	[ `detect_fortran_compiler` == nvc ] && LIBS+=" -lgfortran"
 	[ `detect_fortran_compiler` == flang ] && LIBS+=" -lpgmath -lflang -lflangrti -lm"
 fi
 
@@ -1731,7 +1736,9 @@ if [ x${magma}x != xx ]; then
 		CXXFLAGS="${CXXFLAGS//-std=c++??/}" run cmake -DCMAKE_INSTALL_PREFIX=${idir} \
 			-DBUILD_SHARED_LIBS=OFF -DGPU_TARGET=$SM \
 			-DCUDA_SDK_ROOT_DIR="$CUDADIR" \
+			-DUSE_FORTRAN=OFF \
 			-DMAGMA_ENABLE_CUDA=ON \
+			-DCMAKE_EXE_LINKER_FLAGS="$LIBS" \
 			${CMAKE_EXTRA_FLAGS} \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
@@ -1781,7 +1788,7 @@ if [ x${superbblas}x != xx ]; then
 		[ ${superbblas} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${superbblas} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
-		run cp -r ${srcdir}/${superbblas_src} $bdir
+		run cp -r ${srcdir}/${superbblas_src}/ $bdir
 		make_action="install_cpu"
 		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
