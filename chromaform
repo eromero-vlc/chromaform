@@ -948,8 +948,8 @@ eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3
 cmake                  https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2.tar.gz 
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
-cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.12.0.tar.gz
-thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.12.0.tar.gz
+cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
+thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
 openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.20/OpenBLAS-0.3.20.tar.gz
