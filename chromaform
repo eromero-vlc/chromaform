@@ -1900,8 +1900,10 @@ if [ x${chroma}x != xx ]; then
 			[ x${magma}x != xx ] && chroma_extra+=" -DChroma_ENABLE_MAGMA=ON -DMAGMA_DIR=${installdir}/${magma_install}"
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
-			[ $use_next == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
+			[ ${use_next} == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
 			[ ${use_arch} == hip ] && chroma_extra+=" -DCMAKE_HIP_COMPILER=$CXX -DCMAKE_HIP_COMPILER_FORCED=ON"
+			[ ${use_arch} == cuda -a ${qdp_src} == qdp ] chroma_extra+=" -DChroma_ENABLE_CUDA=ON"
+			[ ${use_arch} == hip -a ${qdp_src} == qdp ] chroma_extra+=" -DChroma_ENABLE_ROCM=ON"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
