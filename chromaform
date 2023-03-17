@@ -646,18 +646,22 @@ if [ x${use_llvm}x == xx ]; then
     fi
 fi
 
-# Detect if there is a cub/thrust available in case the user does not give a clue
-# Also thrust versions previous to CUDA 11 (thrust version < 1.9.10) may fail.
-# Since SDK CUDA 11, cub is also distributed. So, if cub is present, the thrust on
-# the SDK is good enough
+# Detect if there is a cub/thrust available in case the user does not give a clue.
+# Since SDK CUDA 11, thrust and cub are included but they have an inefficient version.
+# The first good version is provided with CUDA 12.
 
 if [ x${use_thrust}x == xx ]; then
 	if [ x${thrust}x != xx ]; then
 		use_thrust="thrust"
 	elif [ $use_arch == hip ]; then
 		use_thrust="thrust-system"
-	elif [ -d $CUDADIR/targets/*/include/cub -a -d $CUDADIR/targets/*/include/thrust ] || [ -d $CUDADIR/include/cub -a -d $CUDADIR/include/thrust ]; then
-		use_thrust="thrust-system"
+	elif [ $use_arch == cuda ]; then
+		cuda_version="`nvcc -V | sed -n 's/^.*release \([^.]\+\).*$/\1/p'`"
+		if [ $cuda_version -lt 12 ]; then
+			use_thrust="thrust"
+		else
+			use_thrust="thrust-system"
+		fi
 	else
 		use_thrust="thrust"
 	fi
