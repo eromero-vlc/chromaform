@@ -619,7 +619,7 @@ if [ x${use_cmake}x == xx ]; then
 		cmake_version="`cmake --version 2>&1  | grep "^cmake version" | tr . ' '`"
 		ver_maj="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_maj; done`"
 		ver_minor="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_minor; done`"
-		( [ $use_arch != hip -a $ver_maj -ge 3 -a $ver_minor -ge 17 ] || [ $use_arch == hip -a $ver_maj -ge 3 -a $ver_minor -ge 21 ] ) && use_cmake="cmake-system"
+		( [ $use_arch != hip -a $ver_maj -ge 3 -a $ver_minor -ge 18 ] || [ $use_arch == hip -a $ver_maj -ge 3 -a $ver_minor -ge 21 ] ) && use_cmake="cmake-system"
 	fi
 fi
 
@@ -749,7 +749,7 @@ if [ $use_libxml2 != libxml2 -a x${libxml2}x != xx ]; then
 	exit 1
 fi
 
-[ x${llvm}${qphix}${mgproto}${quda}${mugiq}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
+[ x${llvm}${qphix}${mgproto}${quda}${mugiq}${magma}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
 
 [ x${gcc}x != xx -a x${mpfr}x == xx ] && mpfr="${mpfr:-update}"
 [ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
@@ -937,7 +937,7 @@ colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
-magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.0.tar.gz
+magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
 superbblas-sp          https://github.com/eromero-vlc/superbblas       eloy/dense
 quda                   https://github.com/lattice/quda                 develop
@@ -1735,10 +1735,9 @@ if [ x${magma}x != xx ]; then
 		pushd $bdir
 		CXXFLAGS="${CXXFLAGS//-std=c++??/}" run cmake -DCMAKE_INSTALL_PREFIX=${idir} \
 			-DBUILD_SHARED_LIBS=OFF -DGPU_TARGET=$SM \
-			-DCUDA_SDK_ROOT_DIR="$CUDADIR" \
 			-DUSE_FORTRAN=OFF \
 			-DMAGMA_ENABLE_CUDA=ON \
-			-DCMAKE_EXE_LINKER_FLAGS="$LIBS" \
+			-DCMAKE_EXE_LINKER_FLAGS="$LIBS" -DLAPACK_LIBRARIES="m $LIBS"\
 			${CMAKE_EXTRA_FLAGS} \
 			${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
