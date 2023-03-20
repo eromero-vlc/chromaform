@@ -646,15 +646,18 @@ if [ x${use_llvm}x == xx ]; then
     fi
 fi
 
-# Detect if there is a cub/thrust available in case the user does not give a clue.
-# Since SDK CUDA 11, thrust and cub are included but they have an inefficient version.
-# The first good version is provided with CUDA 12.
+# Detect if there is thrust available in case the user does not give a clue.
+# The first good version is provided with CUDA 12 and HIP 5.4
 
 if [ x${use_thrust}x == xx ]; then
 	if [ x${thrust}x != xx ]; then
 		use_thrust="thrust"
 	elif [ $use_arch == hip ]; then
-		use_thrust="thrust-system"
+        	rocm_ver="`hipconfig --version`"
+        	case $rocm_ver in
+		4.*|5.0*|5.1*|5.2*|5.3*) use_thrust="thrust" ;;
+		*) use_thrust="thrust-system" ;;
+        	esac
 	elif [ $use_arch == cuda ]; then
 		cuda_version="`nvcc -V | sed -n 's/^.*release \([^.]\+\).*$/\1/p'`"
 		if [ $cuda_version -lt 12 ]; then
@@ -741,7 +744,7 @@ if [ $use_arch != cpu -a x${laplace_eigs}${harom}x != xx ]; then
 fi
 [ $use_arch != cpu -a x${superbblas}${quda}x != xx -a $use_thrust == thrust ] && thrust="${thrust:-update}"
 [ x${thrust}x != xx -a $use_arch == cuda ] && cub="${cub:-update}"
-#[ x${thrust}x != xx -a $use_arch == hip ] && prim="${prim:-update}"
+[ x${thrust}x != xx -a $use_arch == hip ] && prim="${prim:-update}"
 if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	echo "Incompatible options: --thrust=system but also asking for compiling thrust"
 	exit 1
@@ -954,8 +957,8 @@ llvm-11                https://github.com/llvm/llvm-project/releases/download/ll
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
-rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-4.3.1.tar.gz
-rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-4.3.1.tar.gz
+rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
+rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-5.4.3.tar.gz
 openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.20/OpenBLAS-0.3.20.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
