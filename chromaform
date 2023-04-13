@@ -343,7 +343,7 @@ detect_compiler() {
 	compiler="any"
 	if [ x${gcc}x != xx ]; then
 		compiler="gcc"
-	elif ( $CXX --version 2>&1 | grep -q '^gcc version' ); then
+	elif ( $CXX --version 2>&1 | grep -q '^g++' ); then
 		compiler="gcc"
 	elif ( $CXX --version 2>&1 | grep -q '^clang version' ); then
 		compiler="clang"
@@ -361,7 +361,7 @@ detect_fortran_compiler() {
 	compiler="any"
 	if [ x${gcc}x != xx -o x${FC}x == xx ]; then
 		compiler="gcc"
-	elif ( $FC --version 2>&1 | grep -q '^gcc version' ); then
+	elif ( $FC --version 2>&1 | grep -q '^GNU Fortran' ); then
 		compiler="gcc"
 	elif ( $FC --version 2>&1 | grep -q '^nvfortran' ); then
 		compiler="nvc"
