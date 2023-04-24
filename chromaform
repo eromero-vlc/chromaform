@@ -951,7 +951,7 @@ quda                   https://github.com/lattice/quda                 develop
 mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
-eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.bz2
+eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2
 cmake                  https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2.tar.gz 
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
