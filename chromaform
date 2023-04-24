@@ -959,7 +959,7 @@ cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.ta
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-5.4.3.tar.gz
-openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.20/OpenBLAS-0.3.20.tar.gz
+openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.23/OpenBLAS-0.3.23.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
