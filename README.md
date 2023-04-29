@@ -186,6 +186,15 @@ module load rocm/5.1.3
 module load mpi/openmpi-x86_64
 ./chromaform --hip --mg --zen2 --superb chroma openblas CC=mpicc CXX=mpicxx FC=amdflang MAKE_JN=30 AMDGPU_TARGETS='gfx908' OMPI_CC=amdclang OMPI_CXX=amdclang++
 
+# Frontier (MI250)
+module load PrgEnv-amd
+module load openblas
+module load gmp
+module load amd/5.4.3
+module unload craype-accel-amd-gfx90a
+module load cmake
+./chromaform --hip --mg --zen2 --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh AR=llvm-ar RANLIB=llvm-ranlib
+
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake
 ./chromaform --mg --knl --superb chroma CC=cc CXX=CC
