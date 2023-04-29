@@ -498,7 +498,7 @@ if [ ${use_autoflags} == yes ]; then
 	# Old versions of icc need this
 	case "$CFLAGS" in
 	*-std=*) ;;
-	*) CFLAGS+=" -std=c99" ;;
+	*) CFLAGS+=" -std=c11 -D_XOPEN_SOURCE=500" ;;
 	esac
 elif [ x${use_march}x = xx ] ; then
 	info "No architecture information given, just assuming AVX"
@@ -638,8 +638,8 @@ if [ x${use_llvm}x == xx ]; then
     elif llvm-config --version &> /dev/null ; then
         llvm_ver="`llvm-config --version`"
         case $llvm_ver in
-	13*|14*) use_llvm="llvm-system" ;;
-        *)       use_llvm="llvm";;
+	13*|14*|15*) use_llvm="llvm-system" ;;
+        *)           use_llvm="llvm";;
         esac
     else
         use_llvm="llvm"
@@ -1511,7 +1511,9 @@ if [ x${qdp}x != xx ]; then
 	if [ $qdp_src == qdp-jit ]; then
         	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
-		14*) qdp_extra+=" -DQDP_ENABLE_LLVM14=ON" 
+		14*) qdp_extra+=" -DQDP_ENABLE_LLVM14=ON" ;;
+		15*) qdp_extra+=" -DQDP_ENABLE_LLVM15=ON" ;;
+		16*) qdp_extra+=" -DQDP_ENABLE_LLVM16=ON" ;;
         	esac
         	rocm_ver="`hipconfig --version`"
         	case $rocm_ver in
