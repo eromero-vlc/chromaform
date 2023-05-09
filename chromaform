@@ -1630,7 +1630,7 @@ if [ x${quda}x != xx ]; then
 		pushd $bdir
 		CFLAGS_quda=${CFLAGS//-?openmp/}
 		CXXFLAGS_quda=${CXXFLAGS//-?openmp/}
-		CXXFLAGS_quda=${CXXFLAGS_quda///-std=c++??/}
+		CXXFLAGS_quda=${CXXFLAGS_quda//-std=c++??/}
 		LDFLAGS_quda=${LDFLAGS//-?openmp/}
 		CPM_SOURCE_CACHE=$srcdir CFLAGS="${CFLAGS_quda}" CXXFLAGS="${CXXFLAGS_quda}" LDFLAGS="${LDFLAGS_quda}" run cmake  \
 			-DQUDA_DIRAC_CLOVER=ON \
