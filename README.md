@@ -190,10 +190,11 @@ module load mpi/openmpi-x86_64
 module load PrgEnv-amd
 module load openblas
 module load gmp
-module load amd/5.4.3
+module load amd/5.4.2
+module load gcc-mixed
 module unload craype-accel-amd-gfx90a
 module load cmake
-./chromaform --hip --mg --zen2 --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh AR=llvm-ar RANLIB=llvm-ranlib
+./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh AR=llvm-ar RANLIB=llvm-ranlib
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake

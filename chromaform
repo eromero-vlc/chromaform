@@ -181,6 +181,7 @@ use_blas=""
 use_gmp=""
 use_libxml2=""
 use_cmake=""
+use_openmp=""
 use_autoflags="yes"
 use_opt="opt"
 use_std=""
@@ -251,6 +252,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--blas=openblas-system) use_blas="openblas-system";;
 	--blas=atlas-system) use_blas="atlas-system";;
 	--blas=mkl) use_blas="mkl-system";;
+	--openmp=no) use_openmp="nop";;
+	--openmp=yes) use_openmp="yes";;
 	--gmp=build) use_gmp="gmp";;
 	--gmp=system) use_gmp="gmp-system";;
 	--libxml2=build) use_libxml2="libxml2";;
@@ -302,7 +305,10 @@ done
 
 last_status=0 # Last command status
 run() {
-	echo "$>" "$@"
+	echo "$> CFLAGS='$CFLAGS' \\"
+	echo "   CXXFLAGS='$CXXFLAGS' \\"
+	echo "   LDFLAGS='$LDFLAGS' \\"
+	echo "   $@"
 	"$@" < /dev/null
 	last_status=$?
 	if [ $last_status -ne 0 ]; then
@@ -371,140 +377,6 @@ detect_fortran_compiler() {
 	echo $compiler
 }
 
-if [ ${use_autoflags} == yes ]; then
-	info "No CPU architecture given; guessing ..."
-	if [ x${use_march}x == xx ]; then
-		if grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
-			info "Detected AMD zen2"
-			use_march="zen2"
-		elif grep -q "cpu.*:.*POWER" /proc/cpuinfo ; then
-			info "Detected POWER architecture"
-			use_march="power"
-		elif grep -q "vendor_id.*GenuineIntel" /proc/cpuinfo ; then
-			if grep -q "avx512" /proc/cpuinfo ; then
-				info "Detected intel with avx512 support"
-				use_march="avx512"
-			elif grep -q "avx2" /proc/cpuinfo ; then
-				info "Detected intel with avx2 support"
-				use_march="avx2"
-			else
-				info "Detected intel with avx support"
-				use_march="avx"
-			fi
-		fi
-	fi
-	if [ ${use_march} == knl ]; then
-		# Active special tricks for a special architecture
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
-			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
-			;;
-		*)
-			CXXFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
-			CFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
-			;;
-		esac
-	elif [ ${use_march} == avx512 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
-			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
-			;;
-		*)
-			CXXFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
-			CFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
-			;;
-		esac
-	elif [ ${use_march} == avx2 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX2"
-			CFLAGS+=" -xCORE-AVX2"
-			;;
-		*)
-			CXXFLAGS+=" -march=haswell -mavx2"
-			CFLAGS+=" -march=haswell -mavx2"
-			;;
-		esac
-	elif [ ${use_march} == avx ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX"
-			CFLAGS+=" -xCORE-AVX"
-			;;
-		*)
-			CXXFLAGS+=" -march=ivybridge -mavx"
-			CFLAGS+=" -march=ivybridge -mavx"
-			;;
-		esac
-	elif [ ${use_march} == zen2 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xaCORE-AVX2"
-			CFLAGS+=" -xaCORE-AVX2"
-			;;
-		*)
-			CXXFLAGS+=" -march=znver2"
-			CFLAGS+=" -march=znver2"
-			;;
-		esac
-	elif [ ${use_march} == zen3 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xaCORE-AVX2"
-			CFLAGS+=" -xaCORE-AVX2"
-			;;
-		*)
-			CXXFLAGS+=" -march=znver3"
-			CFLAGS+=" -march=znver3"
-			;;
-		esac
-	elif [ ${use_march} == power ]; then
-		info "Not setting specific architecture flags for POWER architecture"
-	fi
-	if ! ( echo ${CXXFLAGS} | grep -q openmp ); then
-		# QDP is compiled with OpenMP, so we need to add the flag
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -qopenmp"
-			CFLAGS+=" -qopenmp"
-			LDFLAGS+=" -qopenmp"
-			;;
-		*)
-			CXXFLAGS+=" -fopenmp"
-			CFLAGS+=" -fopenmp"
-			LDFLAGS+=" -fopenmp"
-			;;
-		esac
-	fi
-	case ${use_opt} in
-	debug)
-		CFLAGS+=" -g3 -O0"
-		CXXFLAGS+=" -g3 -O0"
-		LDFLAGS+=" -g3 -O0"
-		CMAKE_EXTRA_FLAGS+=" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF"
-		;;
-	opt)
-		CFLAGS+=" -O3"
-		CXXFLAGS+=" -O3"
-		LDFLAGS+=" -O3"
-		;;
-	esac
-	case "$CXXFLAGS" in
-	*-std=*) ;;
-	*) CXXFLAGS+=" -std=$use_std" ;;
-	esac
-	# Old versions of icc need this
-	case "$CFLAGS" in
-	*-std=*) ;;
-	*) CFLAGS+=" -std=c11 -D_XOPEN_SOURCE=500" ;;
-	esac
-elif [ x${use_march}x = xx ] ; then
-	info "No architecture information given, just assuming AVX"
-	use_march="avx"
-fi
-
 # If the user gives BLAS options LDFLAGS or LIBS, use them.
 # Otherwise, try to detect an available BLAS on the system,
 # or compile OpenBLAS
@@ -523,12 +395,12 @@ if [ x${use_blas}x == xx ]; then
 			CFLAGS+=" -I${MKLROOT}/include"
 			CXXFLAGS+=" -I${MKLROOT}/include"
 			LIBS+=" -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl"
-		elif pkg-config --cflags openblas ; then
+		elif pkg-config --cflags openblas &> /dev/null; then
 			use_blas="openblas-system"
 			CFLAGS+=" `pkg-config --cflags openblas`"
 			CXXFLAGS+=" `pkg-config --cflags openblas`"
 			LIBS+=" `pkg-config --libs --static openblas`"
-		elif pkg-config --cflags atlas ; then
+		elif pkg-config --cflags atlas &> /dev/null; then
 			use_blas="atlas-system"
 			CFLAGS+=" `pkg-config --cflags atlas`"
 			CXXFLAGS+=" `pkg-config --cflags atlas`"
@@ -683,26 +555,6 @@ if [ x${CUDADIR_extra}x != xx ]; then
 	LDFLAGS+=" -L${CUDADIR_extra}/lib64"
 fi
 
-# Print basic variables
-
-info "Using PATH: $PATH"
-info "Using CUDADIR: $CUDADIR"
-info "Using CUDADIR_extra: $CUDADIR_extra"
-info "Using cmake: ${use_cmake}"
-info "Using llvm: ${use_llvm}"
-info "Using thrust: ${use_thrust}"
-info "Using BLAS: ${use_blas}"
-info "Using GMP: ${use_gmp}"
-info "Using libxml2: ${use_libxml2}"
-info "Using CC=$CC"
-info "Using CFLAGS=$CFLAGS"
-info "Using CXX=$CXX"
-info "Using CXXFLAGS=$CXXFLAGS"
-info "Using FC=$FC"
-info "Using LDFLAGS=$LDFLAGS"
-info "Using LIBS=$LIBS"
-export CC CFLAGS CXX CXXFLAGS FC LDFLAGS LIBS
-
 # Process dependencies
 
 if [ $use_arch == cpu ]; then
@@ -762,6 +614,169 @@ fi
 [ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
 [ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
 [ x${openmpi}x != xx -a x${ucx}x == xx ] && ucx="${ucx:-update}"
+
+# Detecting flags
+
+# Avoid injecting openmp flags when compiling quda
+[ x${use_openmp}x == xx -a $use_arch != cpu -a x${quda}x != xx ] && use_openmp="nop"
+
+if [ ${use_autoflags} == yes ]; then
+	info "No CPU architecture given; guessing ..."
+	if [ x${use_march}x == xx ]; then
+		if grep -q "AMD EPYC 7..3" /proc/cpuinfo ; then
+			info "Detected AMD zen3"
+			use_march="zen3"
+		elif grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
+			info "Detected AMD zen2"
+			use_march="zen2"
+		elif grep -q "cpu.*:.*POWER" /proc/cpuinfo ; then
+			info "Detected POWER architecture"
+			use_march="power"
+		elif grep -q "vendor_id.*GenuineIntel" /proc/cpuinfo ; then
+			if grep -q "avx512" /proc/cpuinfo ; then
+				info "Detected intel with avx512 support"
+				use_march="avx512"
+			elif grep -q "avx2" /proc/cpuinfo ; then
+				info "Detected intel with avx2 support"
+				use_march="avx2"
+			else
+				info "Detected intel with avx support"
+				use_march="avx"
+			fi
+		fi
+	fi
+	if [ ${use_march} == knl ]; then
+		# Active special tricks for a special architecture
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
+			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
+			;;
+		*)
+			CXXFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			CFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			;;
+		esac
+	elif [ ${use_march} == avx512 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
+			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
+			;;
+		*)
+			CXXFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			CFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			;;
+		esac
+	elif [ ${use_march} == avx2 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX2"
+			CFLAGS+=" -xCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=haswell -mavx2"
+			CFLAGS+=" -march=haswell -mavx2"
+			;;
+		esac
+	elif [ ${use_march} == avx ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX"
+			CFLAGS+=" -xCORE-AVX"
+			;;
+		*)
+			CXXFLAGS+=" -march=ivybridge -mavx"
+			CFLAGS+=" -march=ivybridge -mavx"
+			;;
+		esac
+	elif [ ${use_march} == zen2 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xaCORE-AVX2"
+			CFLAGS+=" -xaCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver2"
+			CFLAGS+=" -march=znver2"
+			;;
+		esac
+	elif [ ${use_march} == zen3 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xaCORE-AVX2"
+			CFLAGS+=" -xaCORE-AVX2"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver3"
+			CFLAGS+=" -march=znver3"
+			;;
+		esac
+	elif [ ${use_march} == power ]; then
+		info "Not setting specific architecture flags for POWER architecture"
+	fi
+	if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
+		# QDP is compiled with OpenMP, so we need to add the flag
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -qopenmp"
+			CFLAGS+=" -qopenmp"
+			LDFLAGS+=" -qopenmp"
+			;;
+		*)
+			CXXFLAGS+=" -fopenmp"
+			CFLAGS+=" -fopenmp"
+			LDFLAGS+=" -fopenmp"
+			;;
+		esac
+	fi
+	case ${use_opt} in
+	debug)
+		CFLAGS+=" -g3 -O0"
+		CXXFLAGS+=" -g3 -O0"
+		LDFLAGS+=" -g3 -O0"
+		CMAKE_EXTRA_FLAGS+=" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF"
+		;;
+	opt)
+		CFLAGS+=" -O3"
+		CXXFLAGS+=" -O3"
+		LDFLAGS+=" -O3"
+		;;
+	esac
+	case "$CXXFLAGS" in
+	*-std=*) ;;
+	*) CXXFLAGS+=" -std=$use_std" ;;
+	esac
+	# Old versions of icc need this
+	case "$CFLAGS" in
+	*-std=*) ;;
+	*) CFLAGS+=" -std=c11 -D_XOPEN_SOURCE=500" ;;
+	esac
+elif [ x${use_march}x = xx ] ; then
+	info "No architecture information given, just assuming AVX"
+	use_march="avx"
+fi
+
+# Print basic variables
+
+info "Using PATH: $PATH"
+info "Using CUDADIR: $CUDADIR"
+info "Using CUDADIR_extra: $CUDADIR_extra"
+info "Using cmake: ${use_cmake}"
+info "Using llvm: ${use_llvm}"
+info "Using thrust: ${use_thrust}"
+info "Using BLAS: ${use_blas}"
+info "Using GMP: ${use_gmp}"
+info "Using libxml2: ${use_libxml2}"
+info "Using CC=$CC"
+info "Using CFLAGS=$CFLAGS"
+info "Using CXX=$CXX"
+info "Using CXXFLAGS=$CXXFLAGS"
+info "Using FC=$FC"
+info "Using LDFLAGS=$LDFLAGS"
+info "Using LIBS=$LIBS"
+export CC CFLAGS CXX CXXFLAGS FC LDFLAGS LIBS
+
 
 # Download
 
@@ -1474,6 +1489,10 @@ if [ x${qmp}x != xx ]; then
 			( cd $sdir && run autoreconf -f )
 			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
 		else
+			# QUDA library for HIP is compiled as shared library to avoid a bug, which requies
+			# qmp to be compiled with fPIC flags
+			CFLAGS="$CFLAGS -fPIC" \
+			CXXFLAGS="$CXXFLAGS -fPIC" \
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
 				-DBUILD_TESTING=OFF \
@@ -1501,24 +1520,22 @@ if [ x${qdp}x != xx ]; then
 	if [ $qdp_src == qdp-jit ]; then
 		case $use_arch in
 		cuda)
-			qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ENABLE_THRUST_ALIGNMENT=ON"
+			qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ALIGNMENT_SIZE=128"
 			;;
 		hip)
-			qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS}"
+			qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS} -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DQDP_PROP_OPT=OFF"
+        		rocm_ver="`hipconfig --version`"
+        		case $rocm_ver in
+			5.1*) qdp_extra+=" -DQDP_ROCM5FIX=ON -DQDP_ROCM_PRE=ON" ;;
+			5.0*|4.*) qdp_extra+=" -DQDP_ROCM_PRE=ON" ;;
+        		esac
 			;;
 		esac
-	fi
-	if [ $qdp_src == qdp-jit ]; then
         	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
 		14*) qdp_extra+=" -DQDP_ENABLE_LLVM14=ON" ;;
 		15*) qdp_extra+=" -DQDP_ENABLE_LLVM15=ON" ;;
 		16*) qdp_extra+=" -DQDP_ENABLE_LLVM16=ON" ;;
-        	esac
-        	rocm_ver="`hipconfig --version`"
-        	case $rocm_ver in
-		5.1*) qdp_extra+=" -DQDP_ROCM5FIX=ON -DQDP_ROCM_PRE=ON" ;;
-		5.0*|4.*) qdp_extra+=" -DQDP_ROCM_PRE=ON" ;;
         	esac
 	fi
 	use_qdp_cmake="nop"
@@ -1587,17 +1604,18 @@ if [ x${quda}x != xx ]; then
 				-DQUDA_TARGET_TYPE=CUDA \
 				-DQUDA_GPU_ARCH=$SM \
 				-DCMAKE_CUDA_ARCHITECTURES=${SM#sm_} \
+				-DQUDA_BUILD_SHAREDLIB=OFF \
 				-DCMAKE_C_COMPILER=${CC} \
 				-DCMAKE_CXX_COMPILER=${CXX} \
 				-DCMAKE_LINKER=${CXX} \
-				-DCMAKE_EXE_LINKER_FLAGS="-L${CUDADIR}" \
+				-DCMAKE_EXE_LINKER_FLAGS=-L${CUDADIR} \
 			"
 		else
 			quda_extra_args="\
 				-DQUDA_TARGET_TYPE=HIP \
-				-DGPU_TARGETS=$AMDGPU_TARGETS \
-				-DAMDGPU_TARGETS=$AMDGPU_TARGETS \
+				-DAMDGPU_TARGETS=$AMDGPU_TARGETS -DGPU_TARGETS=$AMDGPU_TARGETS \
 				-DQUDA_GPU_ARCH=$AMDGPU_TARGETS \
+				-DQUDA_BUILD_SHAREDLIB=ON \
 				-DMPI_C_COMPILER=${CC} \
 				-DMPI_CXX_COMPILER=${CXX}"
 			# Avoid compiling issue in QUDA
@@ -1610,15 +1628,21 @@ if [ x${quda}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		CPM_SOURCE_CACHE=$srcdir CXXFLAGS="${CXXFLAGS//-std=c++??/}" run cmake  \
+		CFLAGS_quda=${CFLAGS//-?openmp/}
+		CXXFLAGS_quda=${CXXFLAGS//-?openmp/}
+		CXXFLAGS_quda=${CXXFLAGS_quda///-std=c++??/}
+		LDFLAGS_quda=${LDFLAGS//-?openmp/}
+		CPM_SOURCE_CACHE=$srcdir CFLAGS="${CFLAGS_quda}" CXXFLAGS="${CXXFLAGS_quda}" LDFLAGS="${LDFLAGS_quda}" run cmake  \
 			-DQUDA_DIRAC_CLOVER=ON \
-			-DQUDA_DIRAC_DOMAIN_WALL=OFF \
+			-DQUDA_DIRAC_CLOVER_HASENBUSCH=OFF \
+			-DQUDA_DIRAC_DOMAIN_WALL=ON \
+			-DQUDA_MDW_FUSED_LS_LIST="8" \
 			-DQUDA_DIRAC_NDEG_TWISTED_MASS=OFF \
 			-DQUDA_DIRAC_STAGGERED=OFF \
 			-DQUDA_DIRAC_TWISTED_MASS=OFF \
 			-DQUDA_DIRAC_TWISTED_CLOVER=OFF \
 			-DQUDA_DIRAC_WILSON=ON \
-			-DQUDA_DYNAMIC_CLOVER=OFF \
+			-DQUDA_DYNAMIC_CLOVER=ON \
 			-DQUDA_FORCE_GAUGE=OFF \
 			-DQUDA_FORCE_HISQ=OFF \
 			-DQUDA_GAUGE_ALG=OFF \
@@ -1627,13 +1651,14 @@ if [ x${quda}x != xx ]; then
 			-DQUDA_INTERFACE_CPS=OFF \
 			-DQUDA_INTERFACE_TIFR=OFF \
 			-DQUDA_MAGMA=OFF	\
+			-DQUDA_QIO=OFF	\
 			-DQUDA_MULTIGRID=ON \
 			-DQUDA_MAX_MULTI_BLAS_N=9 \
 			-DQUDA_DOWNLOAD_EIGEN=NO \
 			-DEIGEN_INCLUDE_DIR=${srcdir}/${eigen_src} \
 			-DCMAKE_INSTALL_PREFIX=${idir} \
 			-DCMAKE_BUILD_TYPE=$build_type \
-			-DQUDA_BUILD_SHAREDLIB=NO \
+			-DQUDA_CTEST_DISABLE_BENCHMARKS=ON \
 			-DQUDA_BUILD_ALL_TESTS=OFF \
 			$quda_extra_args \
 			${CMAKE_EXTRA_FLAGS} \
@@ -1643,6 +1668,15 @@ if [ x${quda}x != xx ]; then
 		# Avoid QUDA injecting HIP language into anything linked with it
 		[ $use_arch == hip ] && sed -i 's/;HIP//' ${idir}/lib/cmake/QUDA/QUDATargets-release.cmake
 		popd
+	fi
+	if [ $use_arch == hip ]; then
+		export LD_LIBRARY_PATH="$idir/lib:$LD_LIBRARY_PATH"
+		if [ x${do_export_env}x != xx ]; then
+			cat << EOF >> $do_export_env
+# For quda
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+		fi
 	fi
 fi
 
@@ -1910,9 +1944,8 @@ if [ x${chroma}x != xx ]; then
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
 			[ ${use_next} == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
-			[ ${use_arch} == hip ] && chroma_extra+=" -DCMAKE_HIP_COMPILER=$CXX -DCMAKE_HIP_COMPILER_FORCED=ON"
-			[ ${use_arch} == cuda -a ${qdp_src} == qdp ] && chroma_extra+=" -DChroma_ENABLE_CUDA=ON"
-			[ ${use_arch} == hip -a ${qdp_src} == qdp ] && chroma_extra+=" -DChroma_ENABLE_ROCM=ON"
+			[ ${use_arch} == hip ] && chroma_extra+=" -DChroma_ENABLE_OPENMP=OFF -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DGPU_TARGETS=$AMDGPU_TARGETS"
+			[ ${use_arch} == cuda ]  && chroma_extra+=" -DChroma_ENABLE_CUDA=ON"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
