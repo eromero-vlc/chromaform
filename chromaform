@@ -10,7 +10,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
-           [--libxml2=build|--libxml2=system]                                             \\
+           [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
@@ -180,6 +180,7 @@ use_thrust=""
 use_blas=""
 use_gmp=""
 use_libxml2=""
+use_tinfo=""
 use_cmake=""
 use_openmp=""
 use_autoflags="yes"
@@ -258,6 +259,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--gmp=system) use_gmp="gmp-system";;
 	--libxml2=build) use_libxml2="libxml2";;
 	--libxml2=system) use_libxml2="libxml2-system";;
+	--tinfo=build) use_tinfo="tinfo";;
+	--tinfo=system) use_tinfo="tinfo-system"; ncurses="$action";;
 	--autoflags=no) use_autoflags="nop";;
 	--autoflags=yes) use_autoflags="yes";;
 	-g) use_opt="debug";;
@@ -272,6 +275,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	llvm) llvm="$action";use_llvm="llvm";;
 	cub) cub="$action";;
 	boost) boost="$action";;
+	ncurses) ncurses="$action";;
 	thrust) thrust="$action";use_thrust="thrust";;
 	qmp) qmp="$action";;
 	qdp) qdp="$action";;
@@ -482,6 +486,24 @@ if [ ${use_libxml2} == "libxml2-system" ]; then
 	esac
 fi
 
+# Detect tinfo
+
+if [ x${use_tinfo}x == xx ]; then
+	info "No tinfo suggestion give; detecting tinfo..."
+	case "$LDFLAGS $LIBS" in
+	*tinfo*) use_tinfo="tinfo-system";;
+	*)
+		if [ x${ncurses}x != xx ]; then
+			use_tinfo="tinfo"
+		elif pkg-config --libs tinfo &> /dev/null ; then
+			use_tinfo="tinfo-system"
+		else
+			use_tinfo="tinfo"
+		fi
+		;;
+	esac
+fi
+
 # Detect if there is a cmake available in case the user does not give a clue
 
 if [ x${use_cmake}x == xx ]; then
@@ -607,6 +629,8 @@ if [ $use_libxml2 != libxml2 -a x${libxml2}x != xx ]; then
 	echo "Incompatible options: --libxml2=system but also asking for compiling libxml2"
 	exit 1
 fi
+
+[ x${qdp}x != xx -a $use_arch != cpu -a $use_tinfo == tinfo ] && ncurses="${ncurses:-update}"
 
 [ x${llvm}${qphix}${mgproto}${quda}${mugiq}${magma}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
 
@@ -757,9 +781,21 @@ elif [ x${use_march}x = xx ] ; then
 	use_march="avx"
 fi
 
+if [ ${use_arch} == hip ]; then
+	export AR="${AR:-llvm-ar}"
+	export AS="${AS:-llvm-as}"
+	export LD="${LD:-ld.ldd}"
+	export RANLIB="${RANLIB:-llvm-ranlib}"
+	if ! $AR --version 2>&1 > /dev/null ; then
+		export PATH="`hipconfig -R`/llvm/bin:$PATH"
+		export LD_LIBRARY_PATH="`hipconfig -R`/llvm/lib:$LD_LIBRARY_PATH"
+	fi
+fi
+
 # Print basic variables
 
 info "Using PATH: $PATH"
+info "Using LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
 info "Using CUDADIR: $CUDADIR"
 info "Using CUDADIR_extra: $CUDADIR_extra"
 info "Using cmake: ${use_cmake}"
@@ -878,6 +914,9 @@ fi
 if [ x${boost}x != xx ]; then
 	boost_src="boost"
 fi
+if [ x${ncurses}x != xx ]; then
+	ncurses_src="ncurses"
+fi
 if [ x${gcc}x != xx ]; then
 	gcc_src="gcc"
 	mpfr_src="mpfr"
@@ -924,6 +963,7 @@ $harom        $harom_src
 $redstar      $redstar_src
 $gmp          $gmp_src
 $libxml2      $libxml2_src
+$ncurses      $ncurses_src
 $gcc          $gcc_src
 $mpfr         $mpfr_src
 $isl          $isl_src
@@ -978,6 +1018,7 @@ openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
+ncurses                https://ftp.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
 mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz
 gcc                    https://mirrors.concertpass.com/gcc/releases/gcc-10.1.0/gcc-10.1.0.tar.xz
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
@@ -1232,6 +1273,34 @@ if [ x${cmake}x != xx ]; then
 		cat << EOF >> $do_export_env
 # For cmake
 export PATH="$idir/bin:\$PATH"
+EOF
+	fi
+fi
+
+if [ x${ncurses}x != xx ]; then
+	ncurses_install="${ncurses_src}"
+	sdir="${srcdir}/${ncurses_src}"
+	bdir="${builddir}/${ncurses_install}"
+	idir="${installdir}/${ncurses_install}"
+	info "Doing ${ncurses} ncurses; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${ncurses} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${ncurses} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --disable-shared --enable-static --with-pic
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LD_LIBRARY_PATH+=":${idir}"
+	PKG_CONFIG_PATH+=":${idir}/lib/pkgconfig"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For ncurses
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
 EOF
 	fi
 fi
