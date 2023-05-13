@@ -732,7 +732,6 @@ fi
 
 [ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
-[ x${primme}x != xx -a $use_arch == cuda ] && magma="${magma:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
@@ -1761,7 +1760,6 @@ fi
 
 if [ x${primme}x != xx ]; then
 	primme_install="primme-${use_arch}"
-	[ $use_arch == hip ] && primme_install="primme-cpu"
 	sdir="${srcdir}/${primme_src}"
 	bdir="${builddir}/${primme_install}"
 	idir="${installdir}/${primme_install}"
@@ -1771,11 +1769,14 @@ if [ x${primme}x != xx ]; then
 	elif [ ${primme} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${primme_src} $bdir
-		if [ $use_arch == cpu -o $use_arch == hip ]; then
-			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC"
-		elif [ $use_arch == cuda ]; then
-			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" CUDADIR="$CUDADIR" MAGMADIR="${installdir}/${magma_install}"
-		fi
+		case $use_arch in
+		cpu)
+			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" ;;
+		cuda)
+			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" CUDADIR="$CUDADIR" ;;
+		hip)
+			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" ROCMDIR="`$HIPCONFIG -R`" ;;
+		esac
 		run rm ${idir}/lib/libprimme.so*
 		run cp ${bdir}/lib/libprimme.a ${idir}/lib
 	fi
