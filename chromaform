@@ -783,7 +783,7 @@ fi
 if [ ${use_arch} == hip ]; then
 	export AR="${AR:-llvm-ar}"
 	export AS="${AS:-llvm-as}"
-	export LD="${LD:-ld.ldd}"
+	export LD="${LD:-ld.lld}"
 	export RANLIB="${RANLIB:-llvm-ranlib}"
 	if ! $AR --version 2>&1 > /dev/null ; then
 		export PATH="`hipconfig -R`/llvm/bin:$PATH"
@@ -1023,8 +1023,8 @@ gcc                    https://mirrors.concertpass.com/gcc/releases/gcc-10.1.0/g
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
-ucx                    https://github.com/openucx/ucx/releases/download/v1.13.1/ucx-1.13.1.tar.gz
-openmpi                https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.4.tar.bz2
+ucx                    https://github.com/openucx/ucx/releases/download/v1.14.0/ucx-1.14.0.tar.gz
+openmpi                https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.bz2
 openmpi5               https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.0rc9.tar.gz
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 EOF
