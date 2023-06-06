@@ -441,6 +441,8 @@ if [ ${use_gmp} == "gmp-system" ]; then
 	*)
 		if pkg-config --libs gmpxx &> /dev/null ; then
 			LIBS+=" `pkg-config --libs gmpxx`"
+			CFLAGS+=" `pkg-config --cflags gmpxx`"
+			CXXFLAGS+=" `pkg-config --cflags gmpxx`"
 	        else
 			# Wild guessing
 			LIBS+=" -lgmpxx -lgmp"
@@ -1436,7 +1438,7 @@ if [ x${tensor}x != xx ]; then
 fi
 
 if [ x${hadron}x != xx ]; then
-	hadron_install="hadron"
+	hadron_install="hadron-${use_arch}"
 	sdir="${srcdir}/${hadron_src}"
 	bdir="${builddir}/${hadron_install}"
 	idir="${installdir}/${hadron_install}"
@@ -1448,9 +1450,25 @@ if [ x${hadron}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install}
+		hadron_extra=""
+		case $use_arch in
+		cpu)
+			[ $use_blas == mkl-system ] && hadron_extra+=" --enable-mkl"
+			[ $use_blas == openblas -o $use_blas == openblas-system ] && hadron_extra+=" --enable-openblas"
+			;;
+		cuda)
+			hadron_extra+=" --enable-cuda --with-cudasm=$SM"
+			;;
+		hip)
+			hadron_extra+=" --enable-rocm --with-rocmtarget=$AMDGPU_TARGETS"
+			;;
+		esac
+		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
+		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install} ${hadron_extra}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
+	else
+		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 	fi
 fi
 
@@ -1520,7 +1538,7 @@ if [ x${adat}x != xx ]; then
 fi
 
 if [ x${colorvec}x != xx ]; then
-	colorvec_install="${colorvec_src}"
+	colorvec_install="${colorvec_src}-${use_arch}"
 	sdir="${srcdir}/${colorvec_src}"
 	bdir="${builddir}/${colorvec_install}"
 	idir="${installdir}/${colorvec_install}"
@@ -2035,7 +2053,7 @@ if [ x${chroma}x != xx ]; then
 fi
 
 if [ x${harom}x != xx ]; then
-	harom_install="harom-${qdp3d_install}"
+	harom_install="harom-${qdp3d_install}-${use_arch}"
 	sdir="${srcdir}/${harom_src}"
 	bdir="${builddir}/${harom_install}"
 	idir="${installdir}/${harom_install}"
@@ -2055,7 +2073,7 @@ if [ x${harom}x != xx ]; then
 fi
 
 if [ x${redstar}x != xx ]; then
-	redstar_install="${redstar_src}"
+	redstar_install="${redstar_src}-${use_arch}"
 	sdir="${srcdir}/${redstar_src}"
 	bdir="${builddir}/${redstar_install}"
 	idir="${installdir}/${redstar_install}"
