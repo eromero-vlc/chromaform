@@ -1519,7 +1519,7 @@ if [ x${libxml2}x != xx ]; then
 fi
 
 
-if [ x${qmp}x != xx ]; then::
+if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
 	use_qmp_cmake="nop"
 	[ ${qdp_src} == qdp-jit -o x${quda}x != xx ] && use_qmp_cmake="yes"
