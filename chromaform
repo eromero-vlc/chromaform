@@ -2037,7 +2037,7 @@ fi
 
 if [ x${adat}x != xx ]; then
 	adat_install="${adat_src}"
-	[ $use_superb == yes ] && adat_install="${adat_src}-superb"
+	[ $use_superb == yes ] && adat_install="${adat_src}-${superbblas_src}"
 	sdir="${srcdir}/${adat_src}"
 	bdir="${builddir}/${adat_install}"
 	idir="${installdir}/${adat_install}"
