@@ -599,6 +599,7 @@ fi
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
 [ x${adat}${gcc}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
+[ x${adat}x != xx -a ${use_superb} == yes ] && superbblas="${superbblas:-update}"
 [ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
@@ -1500,44 +1501,6 @@ if [ x${libxml2}x != xx ]; then
 fi
 
 
-if [ x${adat}x != xx ]; then
-	adat_install="${adat_src}"
-	sdir="${srcdir}/${adat_src}"
-	bdir="${builddir}/${adat_install}"
-	idir="${installdir}/${adat_install}"
-	info "Doing ${adat} adat; source=$sdir build=$bdir install=$idir"
-	if [ $do_cleaning == yes ]; then
-		[ ${adat} == clean ] && rm -rf $sdir $bdir $idir
-	elif [ ${adat} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
-		run rm -rf $bdir $idir
-		run mkdir -p $bdir
-		pushd $bdir
-		run ${sdir}/configure --prefix=${idir}
-		run ${MYMAKE} install -j $MAKE_JN
-		popd
-	fi
-fi
-
-if [ x${colorvec}x != xx ]; then
-	colorvec_install="${colorvec_src}"
-	sdir="${srcdir}/${colorvec_src}"
-	bdir="${builddir}/${colorvec_install}"
-	idir="${installdir}/${colorvec_install}"
-	info "Doing ${colorvec} colorvec; source=$sdir build=$bdir install=$idir"
-	if [ $do_cleaning == yes ]; then
-		[ ${colorvec} == clean ] && rm -rf $sdir $bdir $idir
-	elif [ ${colorvec} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
-		run rm -rf $bdir $idir
-		run mkdir -p $bdir
-		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}
-		run ${MYMAKE} install -j $MAKE_JN
-		popd
-	fi
-fi
-
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
 	use_qmp_cmake="nop"
@@ -2049,6 +2012,46 @@ if [ x${harom}x != xx ]; then
 		pushd $bdir
 		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-qdp=${installdir}/${qdp3d_install} \
 			--enable-experimental-baryon-blas-creation
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${adat}x != xx ]; then
+	adat_install="${adat_src}"
+	sdir="${srcdir}/${adat_src}"
+	bdir="${builddir}/${adat_install}"
+	idir="${installdir}/${adat_install}"
+	info "Doing ${adat} adat; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${adat} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${adat} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		adat_extra=""
+		[ $use_superb == yes ] && adat_extra="--with-superbblas=${installdir}/${superbblas_install}"
+		run ${sdir}/configure --prefix=${idir} $adat_extra
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
+if [ x${colorvec}x != xx ]; then
+	colorvec_install="${colorvec_src}"
+	sdir="${srcdir}/${colorvec_src}"
+	bdir="${builddir}/${colorvec_install}"
+	idir="${installdir}/${colorvec_install}"
+	info "Doing ${colorvec} colorvec; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${colorvec} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${colorvec} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
