@@ -183,8 +183,9 @@ export PATH=$PATH:/dist/intel/parallel_studio_2019/intelpython3/bin
 
 # JLab 21g (MI100)
 # Note: OpenMPI and OpenBLAS are already installed but they are slow
+# Note: the zen2 flag is needed when compiling at qcdi2001
 module load rocm/5.1.3
-./chromaform --hip --mg --superb openmpi openblas chroma MAKE_JN=30 AMDGPU_TARGETS='gfx908' --env=env-extra.sh CC=amdclang CXX=amdclang++ FC=amdflang
+./chromaform --hip --zen2 --mg --superb openmpi openblas chroma MAKE_JN=30 AMDGPU_TARGETS='gfx908' --env=env-extra.sh CC=amdclang CXX=amdclang++ FC=amdflang
 
 # Frontier (MI250)
 module load PrgEnv-amd
