@@ -182,9 +182,9 @@ export PATH=$PATH:/dist/intel/parallel_studio_2019/intelpython3/bin
 ./chromaform --knl redstar CC=mpiicc CXX=mpiicpc --gmp=system
 
 # JLab 21g (MI100)
+# Note: OpenMPI and OpenBLAS are already installed but they are slow
 module load rocm/5.1.3
-module load mpi/openmpi-x86_64
-./chromaform --hip --mg --zen2 --superb chroma openblas CC=mpicc CXX=mpicxx FC=amdflang MAKE_JN=30 AMDGPU_TARGETS='gfx908' OMPI_CC=amdclang OMPI_CXX=amdclang++
+./chromaform --hip --mg --superb openmpi openblas chroma MAKE_JN=30 AMDGPU_TARGETS='gfx908' --env=env-extra.sh CC=amdclang CXX=amdclang++ FC=amdflang
 
 # Frontier (MI250)
 module load PrgEnv-amd
