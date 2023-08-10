@@ -600,9 +600,9 @@ fi
 
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
+[ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
 [ x${adat}${gcc}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
 [ x${adat}x != xx -a ${use_superb} == yes ] && superbblas="${superbblas:-update}"
-[ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
