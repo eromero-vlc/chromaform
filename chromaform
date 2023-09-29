@@ -266,9 +266,9 @@ for (( i=1 ; i<=n ; ++i )); do
 	-g) use_opt="debug";;
 	-O) use_opt="opt";;
 	-Onone) use_opt="nop";;
-	--c++11) use_std="c++11";;
-	--c++14) use_std="c++14";;
-	--c++20) use_std="c++20";;
+	--std=c++11) use_std="c++11";;
+	--std=c++14) use_std="c++14";;
+	--std=c++20) use_std="c++20";;
 	--env=*) do_export_env="${arg#--env=}";;
 	openblas) openblas="$action";use_blas="openblas";;
 	cmake) cmake="$action";use_cmake="cmake";;
@@ -1428,6 +1428,9 @@ if [ x${tensor}x != xx ]; then
 		( cd $sdir && run bash autogen.sh )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
+		# Hack for hadron
+		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
+		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		pushd $bdir
 		case "`detect_compiler`" in
 		icc) run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts CC=icc CXX=icpc ;;
@@ -1458,13 +1461,15 @@ if [ x${hadron}x != xx ]; then
 			[ $use_blas == openblas -o $use_blas == openblas-system ] && hadron_extra+=" --enable-openblas"
 			;;
 		cuda)
-			hadron_extra+=" --enable-cuda --with-cudasm=$SM"
+			hadron_extra+=" --enable-cuda --with-cudasm=${SM#sm_}"
 			;;
 		hip)
 			hadron_extra+=" --enable-rocm --with-rocmtarget=$AMDGPU_TARGETS"
 			;;
 		esac
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
+		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
+		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"
 		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install} ${hadron_extra}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
