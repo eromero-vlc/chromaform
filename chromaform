@@ -186,6 +186,7 @@ use_openmp=""
 use_autoflags="yes"
 use_opt="opt"
 use_std=""
+openblas_use_gcc=""
 do_export_env=""
 action="update"
 
@@ -271,6 +272,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--std=c++20) use_std="c++20";;
 	--env=*) do_export_env="${arg#--env=}";;
 	openblas) openblas="$action";use_blas="openblas";;
+	openblas-gcc) openblas="$action";use_blas="openblas";openblas_use_gcc="yes";;
 	cmake) cmake="$action";use_cmake="cmake";;
 	llvm) llvm="$action";use_llvm="llvm";;
 	cub) cub="$action";;
@@ -298,6 +300,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	gcc) gcc="$action";;
 	openmpi) openmpi="$action";;
 	mvapich2) mvapich2="$action";;
+	cpm) cpm="$action";;
 	*=*) export ${arg%%=*}="${arg#*=}";;
 	--help|-h) echo "$hlp_msg"; exit 0;;
 	*) echo "Sorry! Unsupported option '$arg'"; echo "$hlp_msg"; exit 1;;
@@ -1009,15 +1012,15 @@ mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2
-cmake                  https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2.tar.gz 
+cmake                  https://github.com/Kitware/CMake/releases/download/v3.27.6/cmake-3.27.6.tar.gz
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-5.4.3.tar.gz
-openblas               https://github.com/xianyi/OpenBLAS/releases/download/v0.3.23/OpenBLAS-0.3.23.tar.gz
-cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.32.1.tar.gz
+openblas               https://github.com/OpenMathLib/OpenBLAS/archive/refs/tags/v0.3.24.tar.gz
+cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.38.5.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
 ncurses                https://ftp.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
@@ -1048,7 +1051,7 @@ EOF
 		*git*) ( GIT_ASKPASS=w run git clone --recursive $repo -b $branch $srcdir/$proj ) || GIT_ASKPASS=w run git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} -b $branch $srcdir/$proj;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
-		if [ $proj == cpm ] ; then ln -s $srcdir/$proj/cmake/CPM.cmake $srcdir/$proj/CPM_0.32.1.cmake ; fi
+		if [ $proj == cpm ] ; then ln -s $srcdir/$proj/cmake/CPM.cmake $srcdir/$proj/CPM_0.38.5.cmake ; fi
 	done || exit 1
 done || ( echo "Error happened while downloading source codes"  && false ) || exit 1
 
@@ -1386,18 +1389,29 @@ if [ x${openblas}x != xx ]; then
 			# Setting CFLAGS avoid Openblas to set proper flags
 			unset CFLAGS
 			unset CXXFLAGS
-			run ${MYMAKE} -j $MAKE_JN USE_OPENMP=1
+			if [ x${openblas_use_gcc} == xyes ]; then
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=1 CC=gcc CXX=g++ FC=gfortran
+			else
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=1
+			fi
 			run ${MYMAKE} install PREFIX=${idir}
 		)
 		popd
 	fi
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
-	LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
+	# Link statically when the compiler used is the same than for the rest of the packages
+	if [ `detect_compiler` != gcc -a x${openblas_use_gcc} == xyes ]; then
+		LIBS+="  -L${idir}/lib -lopenblas -lm -lpthread"
+	else
+		LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
+	fi
 	LDFLAGS+=" -L${idir}/lib"
-	[ `detect_fortran_compiler` == gcc ] && LIBS+=" -lgfortran"
-	[ `detect_fortran_compiler` == nvc ] && LIBS+=" -lgfortran"
-	[ `detect_fortran_compiler` == flang ] && LIBS+=" -lpgmath -lflang -lflangrti -lm"
+	if [ `detect_fortran_compiler` == gcc -o `detect_fortran_compiler` == nvc -o x${openblas_use_gcc} == xyes ]; then
+		LIBS+=" -lgfortran -lgomp"
+	else
+		LIBS+=" -lpgmath -lflang -lflangrti -lm"
+	fi
 fi
 
 case $use_blas in
@@ -1490,7 +1504,7 @@ if [ x${gmp}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --enable-cxx --disable-shared --with-pic
+		run ${sdir}/configure --prefix=${idir} --enable-cxx --disable-shared --with-pic CC=gcc CXX=g++
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
@@ -1679,6 +1693,9 @@ if [ x${quda}x != xx ]; then
 		[ $qdp_src == qdp-jit ] && quda_extra_args+=" -DQUDA_QDPJIT=ON -DQUDA_INTERFACE_QDPJIT=ON"
 		quda_extra_args+=" -DQUDA_INTERFACE_QDP=ON -DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX"
 
+		# Hack, avoid downloading files
+		sed '/./{H;$!d} ; x ; s/file([^)]*)/# ups/' -i ${sdir}/cmake/CPM.cmake
+
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -1686,7 +1703,7 @@ if [ x${quda}x != xx ]; then
 		CXXFLAGS_quda=${CXXFLAGS//-?openmp/}
 		CXXFLAGS_quda=${CXXFLAGS_quda//-std=c++??/}
 		LDFLAGS_quda=${LDFLAGS//-?openmp/}
-		CPM_SOURCE_CACHE=$srcdir CFLAGS="${CFLAGS_quda}" CXXFLAGS="${CXXFLAGS_quda}" LDFLAGS="${LDFLAGS_quda}" run cmake  \
+		CPM_SOURCE_CACHE=${srcdir} CFLAGS="${CFLAGS_quda}" CXXFLAGS="${CXXFLAGS_quda}" LDFLAGS="${LDFLAGS_quda}" run cmake  \
 			-DQUDA_DIRAC_CLOVER=ON \
 			-DQUDA_DIRAC_CLOVER_HASENBUSCH=OFF \
 			-DQUDA_DIRAC_DOMAIN_WALL=ON \
