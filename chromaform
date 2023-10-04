@@ -1402,7 +1402,13 @@ if [ x${openblas}x != xx ]; then
 	CXXFLAGS+=" -I${idir}/include"
 	# Link statically when the compiler used is the same than for the rest of the packages
 	if [ `detect_compiler` != gcc -a x${openblas_use_gcc} == xyes ]; then
-		LIBS+="  -L${idir}/lib -lopenblas -lm -lpthread"
+		LIBS+=" -L${idir}/lib -lopenblas -lm -lpthread"
+		if [ x${do_export_env}x != xx ]; then
+			cat << EOF >> $do_export_env
+# For openblas
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+		fi
 	else
 		LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
 	fi
