@@ -176,8 +176,14 @@ commands.
 # JLab's KNLs and qcdi140X
 module load cmake-3.13.4
 module load gcc-7.1.0
+# For bash compatible shell
 source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.sh intel64
 export PATH=$PATH:/dist/intel/parallel_studio_2019/intelpython3/bin
+# For tcsh
+source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.csh intel64
+setenv PATH ${PATH}:/dist/intel/parallel_studio_2019/intelpython3/bin
+# NOTE: the python is needed when compiling mgproto (chroma's dependency), not redstar
+# NOTE: the --knl flag is only needed when running on KNL
 ./chromaform --mg --knl --superb chroma CC=mpiicc CXX=mpiicpc
 ./chromaform --knl redstar CC=mpiicc CXX=mpiicpc --gmp=system
 
