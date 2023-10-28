@@ -325,6 +325,16 @@ run() {
 	return 0
 }
 
+run_light() {
+	echo "$> $@"
+	"$@" < /dev/null
+	last_status=$?
+	if [ $last_status -ne 0 ]; then
+		echo "$> warning: last command failed with exit status $last_status"
+	fi
+	return $last_status
+}
+
 info() {
 	echo "#>" "$@"
 }
@@ -530,6 +540,12 @@ if [ $use_arch == hip ]; then
 fi
 
 # Detect if there is a LLVM available in case the user does not give a clue
+# NOTE: before that, make sure that the LLVM on path in the one from rocm when using HIP
+
+if [ ${use_arch} == hip ] && [ `which llvm-config` != `hipconfig -R`/llvm/bin/llvm-config ]; then
+	export PATH="`hipconfig -R`/llvm/bin:$PATH"
+	export LD_LIBRARY_PATH="`hipconfig -R`/llvm/lib:$LD_LIBRARY_PATH"
+fi
 
 if [ x${use_llvm}x == xx ]; then
     if [ x${llvm}x != xx ]; then
@@ -791,10 +807,6 @@ if [ ${use_arch} == hip ]; then
 	export AS="${AS:-llvm-as}"
 	export LD="${LD:-ld.lld}"
 	export RANLIB="${RANLIB:-llvm-ranlib}"
-	if ! $AR --version 2>&1 > /dev/null ; then
-		export PATH="`hipconfig -R`/llvm/bin:$PATH"
-		export LD_LIBRARY_PATH="`hipconfig -R`/llvm/lib:$LD_LIBRARY_PATH"
-	fi
 fi
 
 # Print basic variables
@@ -1051,7 +1063,6 @@ EOF
 		*git*) ( GIT_ASKPASS=w run git clone --recursive $repo -b $branch $srcdir/$proj ) || GIT_ASKPASS=w run git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} -b $branch $srcdir/$proj;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
-		if [ $proj == cpm ] ; then ln -s $srcdir/$proj/cmake/CPM.cmake $srcdir/$proj/CPM_0.38.5.cmake ; fi
 	done || exit 1
 done || ( echo "Error happened while downloading source codes"  && false ) || exit 1
 
@@ -1255,11 +1266,11 @@ if [ x${cmake}x != xx ]; then
 			pushd $bdir
 			if [ $i = 0 ] ; then
 			       	if cmake --version &> /dev/null; then
-					run cmake -DCMAKE_USE_OPENSSL=OFF -DCMAKE_INSTALL_PREFIX=${idir} ${sdir}
-					( run ${MYMAKE} -j $MAKE_JN install ) && popd && break
+					run_light cmake -DCMAKE_USE_OPENSSL=OFF -DCMAKE_INSTALL_PREFIX=${idir} ${sdir} && \
+						run_light ${MYMAKE} -j $MAKE_JN install && popd && break
 				else
-					run $sdir/configure --prefix=$idir
-					( run ${MYMAKE} -j $MAKE_JN install ) && popd && break
+					run_light $sdir/configure --prefix=$idir && \
+						run_light ${MYMAKE} -j $MAKE_JN install && popd && break
 				fi
 			else
 				# On some machines, cmake fails to compile excepting with the system compilers
@@ -1701,6 +1712,7 @@ if [ x${quda}x != xx ]; then
 
 		# Hack, avoid downloading files
 		sed '/./{H;$!d} ; x ; s/file([^)]*)/# ups/' -i ${sdir}/cmake/CPM.cmake
+		ln -s -f $srcdir/cpm/cmake/CPM.cmake $srcdir/cpm/CPM_0.38.5.cmake
 
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir

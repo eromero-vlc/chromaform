@@ -207,7 +207,7 @@ module load cmake
 module load cmake
 ./chromaform --mg --knl --superb chroma CC=cc CXX=CC
 
-# Lumi (MI250)
+# Lumi and Adastra (MI250)
 module load PrgEnv-amd
 module load gcc-mixed
 module load craype-accel-amd-gfx90a
