@@ -257,6 +257,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--openmp=no) use_openmp="nop";;
 	--openmp=yes) use_openmp="yes";;
 	--gmp=build) use_gmp="gmp";;
+	gmp) gmp="$action"; use_gmp="gmp";;
 	--gmp=system) use_gmp="gmp-system";;
 	--libxml2=build) use_libxml2="libxml2";;
 	--libxml2=system) use_libxml2="libxml2-system";;
@@ -1037,19 +1038,19 @@ cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.ta
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-5.4.3.tar.gz
-openblas               https://github.com/OpenMathLib/OpenBLAS/archive/refs/tags/v0.3.24.tar.gz
+openblas               https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.25/OpenBLAS-0.3.25.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.38.5.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
 ncurses                https://ftp.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
-mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz
-gcc                    https://mirrors.concertpass.com/gcc/releases/gcc-10.1.0/gcc-10.1.0.tar.xz
+mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.2.1.tar.xz
+gcc                    http://mirror.rit.edu/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
-ucx                    https://github.com/openucx/ucx/releases/download/v1.14.0/ucx-1.14.0.tar.gz
-openmpi                https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.bz2
-openmpi5               https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.0rc9.tar.gz
+ucx                    https://github.com/openucx/ucx/releases/download/v1.15.0/ucx-1.15.0.tar.gz
+openmpi                https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
+openmpi5               https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.0rc13.tar.bz2
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
 automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
@@ -1137,7 +1138,7 @@ if [ x${gcc}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --disable-bootstrap --disable-multilib --enable-languages="c,c++,fortran" CC=gcc CXX=g++ CFLAGS= CXXFLAGS=
+		run ${sdir}/configure --prefix=${idir} --disable-bootstrap --disable-multilib --enable-languages="c,c++,fortran" CC=gcc CXX=g++ CFLAGS= CXXFLAGS= LDFLAGS=
 		run ${MYMAKE} -j $MAKE_JN
 		run ${MYMAKE} install
 		popd
