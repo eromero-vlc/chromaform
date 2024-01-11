@@ -15,8 +15,8 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
-           [cmake] [llvm] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen] [qmp] [qdp]   \\
-           [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]                \\
+           [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
+           [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
            [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                   \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
@@ -260,6 +260,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--gmp=system) use_gmp="gmp-system";;
 	--libxml2=build) use_libxml2="libxml2";;
 	--libxml2=system) use_libxml2="libxml2-system";;
+	--automake=build|automake) automake="$action";;
+	--automake=system) ;;
 	--tinfo=build) use_tinfo="tinfo";;
 	--tinfo=system) use_tinfo="tinfo-system"; ncurses="$action";;
 	--autoflags=no) use_autoflags="nop";;
@@ -928,6 +930,9 @@ fi
 if [ x${libxml2}x != xx ]; then
 	libxml2_src="libxml2"
 fi
+if [ x${automake}x != xx ]; then
+	automake_src="automake"
+fi
 if [ x${boost}x != xx ]; then
 	boost_src="boost"
 fi
@@ -989,6 +994,7 @@ $boost        $boost_src
 $openmpi      $openmpi_src
 $ucx          $ucx_src
 $mvapich2     $mvapich2_src
+$automake     $automake_src
 EOF
 do
         cat << EOF | while read name repo branch
@@ -1045,6 +1051,8 @@ ucx                    https://github.com/openucx/ucx/releases/download/v1.14.0/
 openmpi                https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.bz2
 openmpi5               https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.0rc9.tar.gz
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
+autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
+automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -1085,6 +1093,32 @@ info "Install directory: $installdir"
 if [ x${do_export_env}x != xx ]; then
 	info "Exporting environment in ${do_export_env}"
 	rm -f $do_export_env
+fi
+
+if [ x${automake}x != xx ]; then
+	automake_install="automake"
+	sdir="${srcdir}/${automake_src}"
+	bdir="${builddir}/${automake_install}"
+	idir="${installdir}/${automake_install}"
+	info "Doing ${automake} automake; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${automake} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${automake} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} 
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install
+		popd
+	fi
+	export PATH=$idir/bin:$PATH
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For automake
+export PATH="$idir/bin:\$PATH"
+EOF
+	fi
 fi
 
 if [ x${gcc}x != xx ]; then
@@ -1277,7 +1311,7 @@ if [ x${cmake}x != xx ]; then
 				(
 					export CFLAGS=
 					export CXXFLAGS=
-					run $sdir/configure --prefix=$idir CC=/usr/bin/gcc CXX=/usr/bin/g++
+					run $sdir/configure --prefix=$idir CC=/usr/bin/gcc CXX=/usr/bin/g++ -- -DCMAKE_USE_OPENSSL=OFF
 					run ${MYMAKE} -j $MAKE_JN install
 				)
 			fi
