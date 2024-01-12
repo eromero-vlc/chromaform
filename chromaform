@@ -1456,7 +1456,7 @@ export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
 EOF
 		fi
 	else
-		LIBS+=" ${idir}/lib/libopenblas.a -lm -lpthread"
+		LIBS+=" -L${idir}/lib -lopenblas -lm -lpthread"
 	fi
 	LDFLAGS+=" -L${idir}/lib"
 	if [ `detect_fortran_compiler` == gcc -o `detect_fortran_compiler` == nvc -o x${openblas_use_gcc} == xyes ]; then
