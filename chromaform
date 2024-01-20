@@ -273,6 +273,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--std=c++11) use_std="c++11";;
 	--std=c++14) use_std="c++14";;
 	--std=c++20) use_std="c++20";;
+	--std=c++23) use_std="c++23";;
 	--env=*) do_export_env="${arg#--env=}";;
 	openblas) openblas="$action";use_blas="openblas";;
 	openblas-gcc) openblas="$action";use_blas="openblas";openblas_use_gcc="yes";;
@@ -377,7 +378,7 @@ detect_compiler() {
 		compiler="nvc"
 	elif ( $CXX -v 2>&1 | grep -q '^icc version' ); then
 		compiler="icc"
-	elif ( $CXX -v 2>&1 | grep -q '^icpc version' ); then
+	elif ( $CXX -v 2>&1 | grep -q 'oneAPI' ); then
 		compiler="icc"
 	fi
 	echo $compiler
@@ -393,6 +394,8 @@ detect_fortran_compiler() {
 		compiler="nvc"
 	elif ( $FC --version 2>&1 | grep -q 'flang[^ ]* version' ); then
 		compiler="flang"
+	elif ( $FC --version 2>&1 | grep -q 'oneAPI' ); then
+		compiler="icc"
 	fi
 	echo $compiler
 }
@@ -632,6 +635,7 @@ fi
 [ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
+[ x${superbblas}x != xx -a $use_superb_next == yes ] && xsimd="${xsimd:-update}"
 if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
 	exit 1
@@ -671,7 +675,10 @@ fi
 if [ ${use_autoflags} == yes ]; then
 	info "No CPU architecture given; guessing ..."
 	if [ x${use_march}x == xx ]; then
-		if grep -q "AMD EPYC 7..3" /proc/cpuinfo ; then
+		if grep -q "AMD EPYC 7..4" /proc/cpuinfo ; then
+			info "Detected AMD zen4"
+			use_march="zen4"
+		elif grep -q "AMD EPYC 7..3" /proc/cpuinfo ; then
 			info "Detected AMD zen3"
 			use_march="zen3"
 		elif grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
@@ -708,8 +715,8 @@ if [ ${use_autoflags} == yes ]; then
 	elif [ ${use_march} == avx512 ]; then
 		case "`detect_compiler`" in
 		icc)
-			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
-			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512"
+			CXXFLAGS+=" -xCORE-AVX512"
+			CFLAGS+=" -xCORE-AVX512"
 			;;
 		*)
 			CXXFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
@@ -741,8 +748,8 @@ if [ ${use_autoflags} == yes ]; then
 	elif [ ${use_march} == zen2 ]; then
 		case "`detect_compiler`" in
 		icc)
-			CXXFLAGS+=" -xaCORE-AVX2"
-			CFLAGS+=" -xaCORE-AVX2"
+			CXXFLAGS+=" -xCORE-AVX2"
+			CFLAGS+=" -xCORE-AVX2"
 			;;
 		*)
 			CXXFLAGS+=" -march=znver2"
@@ -752,12 +759,23 @@ if [ ${use_autoflags} == yes ]; then
 	elif [ ${use_march} == zen3 ]; then
 		case "`detect_compiler`" in
 		icc)
-			CXXFLAGS+=" -xaCORE-AVX2"
-			CFLAGS+=" -xaCORE-AVX2"
+			CXXFLAGS+=" -xCORE-AVX2"
+			CFLAGS+=" -xCORE-AVX2"
 			;;
 		*)
 			CXXFLAGS+=" -march=znver3"
 			CFLAGS+=" -march=znver3"
+			;;
+		esac
+	elif [ ${use_march} == zen4 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX512"
+			CFLAGS+=" -xCORE-AVX512"
+			;;
+		*)
+			CXXFLAGS+=" -march=znver4"
+			CFLAGS+=" -march=znver4"
 			;;
 		esac
 	elif [ ${use_march} == power ]; then
@@ -934,6 +952,9 @@ fi
 if [ x${automake}x != xx ]; then
 	automake_src="automake"
 fi
+if [ x${xsimd}x != xx ]; then
+	xsimd_src="xsimd"
+fi
 if [ x${boost}x != xx ]; then
 	boost_src="boost"
 fi
@@ -986,6 +1007,7 @@ $harom        $harom_src
 $redstar      $redstar_src
 $gmp          $gmp_src
 $libxml2      $libxml2_src
+$xsimd        $xsimd_src
 $ncurses      $ncurses_src
 $gcc          $gcc_src
 $mpfr         $mpfr_src
@@ -1042,6 +1064,7 @@ openblas               https://github.com/OpenMathLib/OpenBLAS/releases/download
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.38.5.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
+xsimd                  https://github.com/xtensor-stack/xsimd.git	12.1.1
 ncurses                https://ftp.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
 mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.2.1.tar.xz
 gcc                    http://mirror.rit.edu/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz
@@ -1843,7 +1866,7 @@ fi
 
 if [ x${qphix}x != xx ]; then
 	case ${use_march} in
-	avx512|knl)     qphix_isa="avx512";;
+	avx512|knl|zen4)qphix_isa="avx512";;
 	avx2|zen2|zen3) qphix_isa="avx2";;
 	avx)            qphix_isa="avx" ;;
 	*)
@@ -1945,6 +1968,15 @@ if [ x${primme}x != xx ]; then
 	LIBS="${installdir}/${primme_install}/lib/libprimme.a $LIBS"
 fi
 
+if [ x${xsimd}x != xx ]; then
+	xsimd_install="xsimd"
+	sdir="${srcdir}/${xsimd_src}"
+	info "Doing ${xsimd} xsimd; source=$sdir"
+	if [ $do_cleaning == yes ]; then
+		[ ${xsimd} == clean ] && rm -rf $sdir
+	fi
+fi
+
 if [ x${superbblas}x != xx ]; then
 	superbblas_install="superbblas-cpu"
 	[ $use_arch == cuda ] && superbblas_install="superbblas-cuda"
@@ -1973,6 +2005,7 @@ if [ x${superbblas}x != xx ]; then
 			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include -I`$HIPCONFIG -R`/hipsparse/include -I`$HIPCONFIG -R`/hipsolver/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
+		[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
 		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
 		[ $use_arch != cpu -a $use_next == nop ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
 		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
@@ -2059,7 +2092,6 @@ if [ x${chroma}x != xx ]; then
 				--with-qmp=${installdir}/${qmp_install} \
 			        --enable-static-packed-gauge \
 			        --enable-fused-clover-deriv-loops \
-				--enable-lapack=lapack --enable-opt-eigcg \
 				$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
 		else
 			chroma_extra=""
