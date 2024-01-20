@@ -16,6 +16,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
+           [ncurses] [libfuse3] [anarchofs]                                               \\
            [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
            [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                   \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
@@ -180,6 +181,7 @@ use_thrust=""
 use_blas=""
 use_gmp=""
 use_libxml2=""
+use_libfuse3=""
 use_tinfo=""
 use_cmake=""
 use_openmp=""
@@ -301,6 +303,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	harom) harom="$action";;
 	redstar) redstar="$action";;
 	libxml2) libxml2="$action";use_libxml2="libxml2";;
+	libfuse3) libfuse3="$action";use_libfuse3="libfuse3";;
+	anarchofs) anarchofs="$action";;
 	gcc) gcc="$action";;
 	openmpi) openmpi="$action";;
 	mvapich2) mvapich2="$action";;
@@ -372,7 +376,7 @@ detect_compiler() {
 		compiler="gcc"
 	elif ( $CXX --version 2>&1 | grep -q '^g++' ); then
 		compiler="gcc"
-	elif ( $CXX --version 2>&1 | grep -q '^clang version' ); then
+	elif ( $CXX --version 2>&1 | grep -q 'clang version' ); then
 		compiler="clang"
 	elif ( $CXX --version 2>&1 | grep -q '^nvc' ); then
 		compiler="nvc"
@@ -525,6 +529,32 @@ if [ x${use_tinfo}x == xx ]; then
 	esac
 fi
 
+# Detect llibfuse3
+
+if [ x${use_libfuse3}x == xx ]; then
+	info "No libfuse3 suggestion give; detecting libfuse3..."
+	case "$LDFLAGS $LIBS" in
+	*fuse3*) use_libfuse3="libfuse3-system";;
+	*)
+		if pkg-config --libs fuse3 &> /dev/null ; then
+			use_libfuse3="libfuse3-system"
+		else
+			use_libfuse3="libfuse3"
+		fi
+		;;
+	esac
+fi
+
+# Detect python3
+
+if [ x${PYTHON} == x ]; then
+	if python --version | grep -q "Python 3" &> /dev/null ; then
+		PYTHON="python"
+	elif python3 --version | grep -q "Python 3" &> /dev/null ; then
+		PYTHON="python3"
+	fi
+fi
+
 # Detect if there is a cmake available in case the user does not give a clue
 
 if [ x${use_cmake}x == xx ]; then
@@ -666,6 +696,8 @@ fi
 [ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
 [ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
 [ x${openmpi}x != xx -a x${ucx}x == xx ] && ucx="${ucx:-update}"
+
+[ x${anarchofs}x != xx -a x${use_libfuse3}x == xlibfuse3x ] && libfuse3="${libfuse3:-update}"
 
 # Detecting flags
 
@@ -961,6 +993,12 @@ fi
 if [ x${ncurses}x != xx ]; then
 	ncurses_src="ncurses"
 fi
+if [ x${anarchofs}x != xx ]; then
+	anarchofs_src="anarchofs"
+fi
+if [ x${libfuse3}x != xx ]; then
+	libfuse3_src="libfuse3"
+fi
 if [ x${gcc}x != xx ]; then
 	gcc_src="gcc"
 	mpfr_src="mpfr"
@@ -1018,6 +1056,8 @@ $openmpi      $openmpi_src
 $ucx          $ucx_src
 $mvapich2     $mvapich2_src
 $automake     $automake_src
+$anarchofs    $anarchofs_src
+$libfuse3     $libfuse3_src
 EOF
 do
         cat << EOF | while read name repo branch
@@ -1077,6 +1117,8 @@ openmpi5               https://download.open-mpi.org/release/open-mpi/v5.0/openm
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
 automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
+anarchofs              https://github.com/eromero-vlc/anarchofs.git   main
+libfuse3               https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -1607,11 +1649,77 @@ if [ x${libxml2}x != xx ]; then
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
 	LIBS+=" -L${idir}/lib -lxml2"
-	LD_LIBRARY_PATH+=":${idir}"
+	LD_LIBRARY_PATH+=":${idir}/lib"
 	PKG_CONFIG_PATH+=":${idir}/lib/pkgconfig"
 	PATH+=":${idir}/bin"
 fi
 
+
+if [ x${libfuse3}x != xx ]; then
+	libfuse3_install="${libfuse3_src}"
+	sdir="${srcdir}/${libfuse3_src}"
+	bdir="${builddir}/${libfuse3_install}"
+	idir="${installdir}/${libfuse3_install}"
+	info "Doing ${libfuse3} libfuse3; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${libfuse3} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${libfuse3} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run $PYTHON -mvenv $bdir/py3
+		(
+			. $bdir/py3/bin/activate
+			pip install --upgrade pip
+			pip install meson
+			pip install ninja
+			export CC=gcc
+			export CXX=g++
+			export CFLAGS=
+			export CXXFLAGS=
+			export LIBS=
+			export LDFLAGS=
+			export DESTDIR=$idir
+			meson setup $sdir
+			meson configure  -Dprefix=$idir -Dexamples=false -Dtests=false -Dudevrulesdir=false -Duseroot=false -Dutils=true -Dbackend=ninja -Dsysconfdir=$idir/etc
+			ninja install
+		)
+		popd
+	fi
+	CFLAGS+=" -I${idir}/include/fuse3"
+	CXXFLAGS+=" -I${idir}/include/fuse3"
+	LIBS+=" -L${idir}/lib64 -lfuse3"
+	LD_LIBRARY_PATH+=":${idir}/lib64"
+	PKG_CONFIG_PATH+=":${idir}/lib64/pkgconfig"
+	PATH+=":${idir}/bin"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For libfuse
+export PATH="$idir/bin:\$PATH"
+export LD_LIBRARY_PATH="$idir/lib64:\$LD_LIBRARY_PATH"
+export PKG_CONFIG_PATH="$idir/lib64/pkgconfig:\$PKG_CONFIG_PATH"
+EOF
+	fi
+fi
+
+if [ x${anarchofs}x != xx ]; then
+	anarchofs_install="${anarchofs_src}"
+	sdir="${srcdir}/${anarchofs_src}"
+	bdir="${builddir}/${anarchofs_install}"
+	idir="${installdir}/${anarchofs_install}"
+	info "Doing ${anarchofs} anarchofs; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${anarchofs} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${anarchofs} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		cp -r $sdir $bdir
+		pushd $bdir
+		run ${MYMAKE}
+		mkdir -p $idir
+		cp anarchofs $idir/
+		popd
+	fi
+fi
 
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"

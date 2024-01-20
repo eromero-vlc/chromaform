@@ -8,13 +8,14 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
-           [--libxml2=build|--libxml2=system]                                             \\
+           [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
            [--std=c++11|--std=c++14|--std=c++20]                                          \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
-           [cmake] [llvm] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen] [qmp] [qdp]   \\
-           [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]                \\
+           [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
+           [ncurses] [libfuse3] [anarchofs]                                               \\
+           [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
            [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                   \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
