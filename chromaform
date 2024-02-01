@@ -1088,7 +1088,8 @@ primme                 https://github.com/primme/primme                eloy/prim
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
 superbblas-sp          https://github.com/eromero-vlc/superbblas       devel
-quda                   https://github.com/lattice/quda                 develop
+quda                   https://github.com/lattice/quda                 4abd38676040a06072ed94d84c7c4dac90ee8558
+#quda                   https://github.com/lattice/quda                 develop
 mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
