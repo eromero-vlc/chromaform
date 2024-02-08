@@ -1136,8 +1136,8 @@ EOF
 		*gz) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.gz && tar xzf $tmp/d.gz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
 		*xz) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.xz && tar xJf $tmp/d.xz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
 		*git*)
-			( GIT_ASKPASS=w run git clone --recursive $repo $srcdir/$proj || GIT_ASKPASS=w run git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} $srcdir/$proj ) && \
-				( cd $srcdir/$proj; git checkout ${branch} && git submodule update --recursive ) # checkout a branch or a commit
+			( GIT_ASKPASS=w git clone --recursive $repo $srcdir/$proj || GIT_ASKPASS=w git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} $srcdir/$proj ) && \
+				( cd $srcdir/$proj; git checkout ${branch} && git submodule update --recursive ) || run false # checkout a branch or a commit
 			;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
