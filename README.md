@@ -202,7 +202,7 @@ module load amd/5.4.2
 module load gcc-mixed
 module unload craype-accel-amd-gfx90a
 module load cmake
-./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh AR=llvm-ar RANLIB=llvm-ranlib
+./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake
@@ -233,16 +233,6 @@ module load intel-mpi
 module load cuda/10.2
 ./chromaform --mg --cuda --superb chroma SM=sm_70 CC=mpicc CXX=mpicxx MAKE_JN=10
 
-# At Piz Dain
-module purge
-module load PrgEnv-gnu
-module switch gcc gcc/9.3.0
-module load daint-gpu
-module load cray-mpich
-module load craype-accel-nvidia60
-module load cray-python
-./chromaform --mg --cuda --superb chroma SM=sm_60 CC=cc CXX=CC FC=ftn
-
 # At Juwels Booster
 module load GCC/9.3.0
 module load OpenMPI/4.1.0rc1
@@ -250,21 +240,13 @@ module load CUDA/11.0
 module load CMake/3.18.0
 ./chromaform --mg --cuda --superb chroma SM=sm_80 FC=gfortran
 
-# At Summit (other versions of cuda & gcc may also work)
-module load cuda/10.2.89
-module load gcc/7.4.0
-module load cmake
-./chromaform --mg --cuda --superb chroma SM=sm_70 FC=gfortran MAKE_JN=10
-
 # Perlmutter CPU
 module load cmake
 ./chromaform --mg --superb chroma CC=cc CXX=CC FC=ftn
 
 # Perlmutter GPU
 module load cmake
-# NOTE: avoid QUDA issue with CUDA 11.7 https://github.com/lattice/quda/issues/1307
-module load cudatoolkit/11.4
-./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/21.9/math_libs
+./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80
 
 # Polaris
 module swap PrgEnv-nvhpc PrgEnv-gnu
