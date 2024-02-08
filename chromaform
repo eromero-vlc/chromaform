@@ -644,7 +644,7 @@ else
 	[ $use_mg == yes -a x${chroma}x != xx ] && quda="${quda:-update}"
 	#[ $use_mg == yes -a $use_next == yes ] && mugiq="${mugiq:-update}"
 fi
-[ x${quda}x != xx -a $use_arch == hip ] && cpm="${cpm:-update}"
+[ x${quda}x != xx ] && cpm="${cpm:-update}"
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ x${chroma}x != xx -a $use_superb == yes ] && superbblas="${superbblas:-update}"
 [ x${chroma}x != xx -a $use_next == yes ] && boost="${boost:-update}"
@@ -662,7 +662,7 @@ fi
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
-[ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}"
+[ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && llvm_cmake="${llvm_cmake:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_superb_next == yes ] && xsimd="${xsimd:-update}"
@@ -929,7 +929,8 @@ if [ x${cmake}x != xx ]; then
 	cmake_src="cmake"
 fi
 if [ x${llvm}x != xx ]; then
-	llvm_src="llvm-13"
+	llvm_src="llvm-15"
+	llvm_cmake_src="llvm_cmake"
 fi
 if [ x${cub}x != xx ]; then
 	cub_src="cub"
@@ -1020,6 +1021,7 @@ fi
 cat << EOF | while read act proj
 $cmake        $cmake_src
 $llvm         $llvm_src
+$llvm_cmake   $llvm_cmake_src
 $cub          $cub_src
 $prim         $prim_src
 $thrust       $thrust_src
@@ -1097,6 +1099,8 @@ eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3
 cmake                  https://github.com/Kitware/CMake/releases/download/v3.27.6/cmake-3.27.6.tar.gz
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
+llvm-15                https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/llvm-15.0.7.src.tar.xz
+llvm_cmake             https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/cmake-15.0.7.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
@@ -1436,6 +1440,9 @@ if [ x${llvm}x != xx ]; then
 	elif [ ${llvm} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
+		# Fix compilation of LLVM 15, https://discourse.llvm.org/t/issues-compiling-15-0-7/69255
+		mkdir -p $sdir/cmake/modules
+		cp -r ${srcdir}/${llvm_cmake_src}/Modules/* $sdir/cmake/modules
 		pushd $bdir
 		run cmake \
 		      -DLLVM_ENABLE_TERMINFO="OFF" \
@@ -1445,6 +1452,8 @@ if [ x${llvm}x != xx ]; then
 		      -DLLVM_ENABLE_ZLIB="OFF" \
 		      -DBUILD_SHARED_LIBS="OFF" \
 		      -DLLVM_ENABLE_RTTI="ON"  \
+		      -DLLVM_INCLUDE_BENCHMARKS=OFF \
+		      -DLLVM_ENABLE_LIBEDIT=OFF \
 		      $sdir
 		run ${MYMAKE} -j $MAKE_JN
 		run ${MYMAKE} install
