@@ -666,6 +666,7 @@ fi
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_superb_next == yes ] && xsimd="${xsimd:-update}"
+[ x${superbblas}x != xx -a $use_superb_next == yes ] && anarchofs="${anarchofs:-update}"
 if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
 	exit 1
@@ -696,8 +697,6 @@ fi
 [ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
 [ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
 [ x${openmpi}x != xx -a x${ucx}x == xx ] && ucx="${ucx:-update}"
-
-[ x${anarchofs}x != xx -a x${use_libfuse3}x == xlibfuse3x ] && libfuse3="${libfuse3:-update}"
 
 # Detecting flags
 
@@ -1727,10 +1726,18 @@ if [ x${anarchofs}x != xx ]; then
 		run rm -rf $bdir $idir
 		cp -r $sdir $bdir
 		pushd $bdir
-		run ${MYMAKE}
+		run ${MYMAKE} clean anarchofs
 		mkdir -p $idir
 		cp anarchofs $idir/
+		cp anarchofs_lib.h $idir/
 		popd
+	fi
+	CXXFLAGS+=" -I${idir}"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For anarchofs
+export PATH="$idir:\$PATH"
+EOF
 	fi
 fi
 
@@ -2135,6 +2142,8 @@ if [ x${superbblas}x != xx ]; then
 	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C` -I`$HIPCONFIG -R`/include"
 	[ $use_arch == hip -a $use_next == nop ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lhipsolver -lhipsparse -lhipblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
 	[ $use_arch == hip -a $use_next == yes ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
+	# Add anarchofs support
+	[ x${anarchofs}x != xx ] && CXXFLAGS+=" -DSUPERBBLAS_USE_ANARCHOFS"
 fi
 
 if [ x${mgproto}x != xx ]; then
