@@ -529,7 +529,7 @@ if [ x${use_tinfo}x == xx ]; then
 	esac
 fi
 
-# Detect llibfuse3
+# Detect libfuse3
 
 if [ x${use_libfuse3}x == xx ]; then
 	info "No libfuse3 suggestion give; detecting libfuse3..."
@@ -662,7 +662,7 @@ fi
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
-[ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && llvm_cmake="${llvm_cmake:-update}"
+[ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && llvm_cmake="${llvm_cmake:-update}" && lld="${lld:-update}" && unwind="${unwind:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_superb_next == yes ] && xsimd="${xsimd:-update}"
@@ -930,6 +930,8 @@ fi
 if [ x${llvm}x != xx ]; then
 	llvm_src="llvm-15"
 	llvm_cmake_src="llvm_cmake"
+	lld_src="lld"
+	unwind_src="unwind"
 fi
 if [ x${cub}x != xx ]; then
 	cub_src="cub"
@@ -1021,6 +1023,8 @@ cat << EOF | while read act proj
 $cmake        $cmake_src
 $llvm         $llvm_src
 $llvm_cmake   $llvm_cmake_src
+$lld          $lld_src
+$unwind       $unwind_src
 $cub          $cub_src
 $prim         $prim_src
 $thrust       $thrust_src
@@ -1100,6 +1104,8 @@ llvm-11                https://github.com/llvm/llvm-project/releases/download/ll
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
 llvm-15                https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/llvm-15.0.7.src.tar.xz
 llvm_cmake             https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/cmake-15.0.7.src.tar.xz
+lld                    https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/lld-15.0.7.src.tar.xz
+unwind                 https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/libunwind-15.0.7.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
@@ -1116,8 +1122,7 @@ isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.b
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
 ucx                    https://github.com/openucx/ucx/releases/download/v1.15.0/ucx-1.15.0.tar.gz
-openmpi                https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
-openmpi5               https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.0rc13.tar.bz2
+openmpi                https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.2.tar.bz2
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
 automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
@@ -1248,7 +1253,7 @@ if [ x${ucx}x != xx ]; then
 		case $use_arch in
 		cpu) ;;
 		cuda) ucx_extra+=" --with-cuda=$CUDADIR" ;;
-		hip) ucx_extra+="" ;;
+		hip) ucx_extra+=" --with-rocm=`hipconfig -R`" ;;
 		esac
 		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --without-java --enable-cma --with-verbs --without-xpmem --disable-doxygen-doc $ucx_extra
 		run ${MYMAKE} -j $MAKE_JN
@@ -1289,7 +1294,7 @@ if [ x${openmpi}x != xx ]; then
 			inccudart_path="`find $CUDADIR -name cuda_runtime_api.h | head -1`"
 			libcudart_path="`find $CUDADIR -name libcudart.so | head -1`"
 			openmpi_extra+=" --with-cuda=$CUDADIR --with-cuda-libdir=`dirname $libcuda_path` --enable-mca-dso=btl-smcuda,rcache-rgpusm,rcache-gpusm,accelerator-cuda CPPFLAGS=-I`dirname $inccudart_path` LDFLAGS=-L`dirname $libcudart_path`" ;;
-		hip) openmpi_extra+="" ;;
+		hip) openmpi_extra+=" --with-rocm=`hipconfig -R`" ;;
 		esac
 		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --with-ucx=${installdir}/${ucx_install} --enable-mca-no-build=btl-uct --disable-oshmem $openmpi_extra
 		run ${MYMAKE} -j $MAKE_JN
@@ -1442,15 +1447,22 @@ if [ x${llvm}x != xx ]; then
 		# Fix compilation of LLVM 15, https://discourse.llvm.org/t/issues-compiling-15-0-7/69255
 		mkdir -p $sdir/cmake/modules
 		cp -r ${srcdir}/${llvm_cmake_src}/Modules/* $sdir/cmake/modules
+		# Fix compilation of lld
+		[ -f ${srcdir}/${lld_src}/MachO/mach-o ] || ln -s ${srcdir}/${unwind_src}/include/mach-o ${srcdir}/${lld_src}/MachO/mach-o
+		# Decide target
+		llvm_targets="X86"
+		[ $use_arch == cuda ] && llvm_targets="NVPTX;X86"
+		[ $use_arch == hip ] && llvm_targets="AMDGPU;X86"
 		pushd $bdir
 		run cmake \
 		      -DLLVM_ENABLE_TERMINFO="OFF" \
 		      -DCMAKE_BUILD_TYPE=Release \
 		      -DCMAKE_INSTALL_PREFIX=${idir} \
-		      -DLLVM_TARGETS_TO_BUILD="NVPTX;X86" \
+		      -DLLVM_TARGETS_TO_BUILD="${llvm_targets}" \
 		      -DLLVM_ENABLE_ZLIB="OFF" \
 		      -DBUILD_SHARED_LIBS="OFF" \
 		      -DLLVM_ENABLE_RTTI="ON"  \
+		      -DLLVM_ENABLE_PROJECTS="lld" -DLLVM_EXTERNAL_LLD_SOURCE_DIR="${srcdir}/${lld_src}" \
 		      -DLLVM_INCLUDE_BENCHMARKS=OFF \
 		      -DLLVM_ENABLE_LIBEDIT=OFF \
 		      $sdir
@@ -1910,7 +1922,7 @@ if [ x${quda}x != xx ]; then
 		CPM_SOURCE_CACHE=${srcdir} CFLAGS="${CFLAGS_quda}" CXXFLAGS="${CXXFLAGS_quda}" LDFLAGS="${LDFLAGS_quda}" run cmake  \
 			-DQUDA_DIRAC_CLOVER=ON \
 			-DQUDA_DIRAC_CLOVER_HASENBUSCH=OFF \
-			-DQUDA_DIRAC_DOMAIN_WALL=ON \
+			-DQUDA_DIRAC_DOMAIN_WALL=OFF \
 			-DQUDA_MDW_FUSED_LS_LIST="8" \
 			-DQUDA_DIRAC_NDEG_TWISTED_MASS=OFF \
 			-DQUDA_DIRAC_STAGGERED=OFF \
@@ -2130,16 +2142,16 @@ if [ x${superbblas}x != xx ]; then
 		elif [ $use_arch == hip ]; then
 			make_action="install_hip"
 			hip_arch_flags="$( for arch in ${AMDGPU_TARGETS//;/ }; do echo -n "--offload-arch=$arch "; done )"
-			export HIPFLAGS="`$HIPCONFIG -C` -I`$HIPCONFIG -R`/hipblas/include -I`$HIPCONFIG -R`/hipsparse/include -I`$HIPCONFIG -R`/hipsolver/include $hip_arch_flags"
+			export HIPFLAGS="`$HIPCONFIG -C | tr '\n' ' '` -I`$HIPCONFIG -R`/hipblas/include -I`$HIPCONFIG -R`/hipsparse/include -I`$HIPCONFIG -R`/hipsolver/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
 		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
-		[ $use_arch != cpu -a $use_next == nop ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
+		[ $use_arch != cpu -a $use_next != yes ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
 		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
 	fi
 	# Add flags to compile and link with HIP runtime and to link with clang openmp
-	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C` -I`$HIPCONFIG -R`/include"
+	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C | tr '\n' ' '` -I`$HIPCONFIG -R`/include"
 	[ $use_arch == hip -a $use_next == nop ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lhipsolver -lhipsparse -lhipblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
 	[ $use_arch == hip -a $use_next == yes ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
 	# Add anarchofs support
