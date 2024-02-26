@@ -231,8 +231,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--cpu) use_arch="cpu";;
 	--jit|--cuda) use_arch="cuda";;
 	--hip) use_arch="hip";;
-	--superb) use_superb="yes";;
 	--qdpjit=no) use_qdpjit="no";;
+	--superb) use_superb="yes";use_superb_next="nop";;
 	--superb-next) use_superb="yes";use_superb_next="yes";;
 	--avx) use_march="avx";;
 	--avx2) use_march="avx2";;
@@ -666,7 +666,7 @@ fi
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_superb_next == yes ] && xsimd="${xsimd:-update}"
-[ x${superbblas}x != xx -a $use_superb_next == yes ] && anarchofs="${anarchofs:-update}"
+[ x${superbblas}x != xx ] && anarchofs="${anarchofs:-update}"
 if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
 	exit 1
@@ -2135,7 +2135,7 @@ if [ x${superbblas}x != xx ]; then
 		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
 			[ x${thrust}x != xx ] && sb_nvcc_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
-			[ $use_next == nop ] && sb_nvcc_extra+=" -std=c++14"
+			sb_nvcc_extra+=" -std=c++14"
 			[ $use_opt == debug ] && sb_nvcc_extra+=" -G"
 			[ $use_opt == opt ] && sb_nvcc_extra+=" -O3"
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_nvcc_extra"
@@ -2147,13 +2147,12 @@ if [ x${superbblas}x != xx ]; then
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
 		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
-		[ $use_arch != cpu -a $use_next != yes ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
+		[ $use_arch != cpu ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
 		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
 	fi
 	# Add flags to compile and link with HIP runtime and to link with clang openmp
 	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C | tr '\n' ' '` -I`$HIPCONFIG -R`/include"
-	[ $use_arch == hip -a $use_next == nop ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lhipsolver -lhipsparse -lhipblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
-	[ $use_arch == hip -a $use_next == yes ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
+	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
 	# Add anarchofs support
 	[ x${anarchofs}x != xx ] && CXXFLAGS+=" -DSUPERBBLAS_USE_ANARCHOFS"
 fi
