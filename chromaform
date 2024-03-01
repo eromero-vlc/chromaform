@@ -172,6 +172,7 @@ use_arch="cpu"
 use_march=""
 use_pdf="nop"
 use_next="nop"
+use_restructure="nop"
 use_superb="nop"
 use_qdpjit="yes"
 use_superb_next="nop"
@@ -232,6 +233,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--jit|--cuda) use_arch="cuda";;
 	--hip) use_arch="hip";;
 	--qdpjit=no) use_qdpjit="no";;
+	--restructure) use_restructure="yes";;
 	--superb) use_superb="yes";use_superb_next="nop";;
 	--superb-next) use_superb="yes";use_superb_next="yes";;
 	--avx) use_march="avx";;
@@ -689,6 +691,11 @@ if [ $use_libxml2 != libxml2 -a x${libxml2}x != xx ]; then
 	exit 1
 fi
 
+if [ $use_superb_next == yes -a $use_restructure == yes ] ; then
+	echo "Incompatible options: --superb-next and --restructure"
+	exit 1
+fi
+
 [ x${qdp}x != xx -a $use_arch != cpu -a $use_tinfo == tinfo ] && ncurses="${ncurses:-update}"
 
 [ x${llvm}${qphix}${mgproto}${quda}${mugiq}${magma}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
@@ -914,6 +921,8 @@ if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
 	if [ $use_next == yes ]; then
 		chroma_src="chroma-fs-sp"
+	elif [ $use_restructure == yes ]; then
+		chroma_src="chroma-restructure"
 	elif [ $use_superb_next == yes ]; then
 		chroma_src="chroma-sp"
 	fi
@@ -1072,6 +1081,8 @@ qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concep
 qmp                    https://github.com/usqcd-software/qmp           devel
 chroma                 https://github.com/JeffersonLab/chroma          devel
 chroma-sp              https://github.com/JeffersonLab/chroma          eloy/mgproton
+#chroma-restructure     https://github.com/JeffersonLab/chroma          restructure
+chroma-restructure     https://github.com/JeffersonLab/chroma          restructure-fix-qdp-jit-issue
 chroma-fs-sp           https://github.com/twLQCD/chroma.git            travis/mgproton-progress-blocking-fs
 chroma                 https://github.com/JeffersonLab/chroma          devel
 qphix                  https://github.com/JeffersonLab/qphix           devel
