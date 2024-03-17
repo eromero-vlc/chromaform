@@ -1307,7 +1307,7 @@ if [ x${openmpi}x != xx ]; then
 			openmpi_extra+=" --with-cuda=$CUDADIR --with-cuda-libdir=`dirname $libcuda_path` --enable-mca-dso=btl-smcuda,rcache-rgpusm,rcache-gpusm,accelerator-cuda CPPFLAGS=-I`dirname $inccudart_path` LDFLAGS=-L`dirname $libcudart_path`" ;;
 		hip) openmpi_extra+=" --with-rocm=`hipconfig -R`" ;;
 		esac
-		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --with-ucx=${installdir}/${ucx_install} --enable-mca-no-build=btl-uct --disable-oshmem $openmpi_extra
+		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --with-ucx=${installdir}/${ucx_install} --enable-mca-no-build=btl-uct --disable-oshmem --disable-io-romio $openmpi_extra
 		run ${MYMAKE} -j $MAKE_JN
 		run ${MYMAKE} install
 		popd
@@ -1749,9 +1749,7 @@ if [ x${anarchofs}x != xx ]; then
 		run rm -rf $bdir $idir
 		cp -r $sdir $bdir
 		pushd $bdir
-		run ${MYMAKE} clean anarchofs
 		mkdir -p $idir
-		cp anarchofs $idir/
 		cp anarchofs_lib.h $idir/
 		popd
 	fi
@@ -2309,7 +2307,7 @@ if [ x${adat}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		adat_extra=""
-		[ $use_superb == yes ] && adat_extra="--with-superbblas=${installdir}/${superbblas_install}"
+		[ $use_superb == yes ] && adat_extra="--with-superbblas=${installdir}/${superbblas_install} --enable-mpi"
 		run ${sdir}/configure --prefix=${idir} $adat_extra
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -2329,7 +2327,8 @@ if [ x${colorvec}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install}
+		[ $use_superb == yes ] && colorvec_extra="--enable-mpi"
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install} ${colorvec_extra}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
@@ -2348,7 +2347,8 @@ if [ x${redstar}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install} --with-colorvec=${installdir}/${colorvec_install}
+		[ $use_superb == yes ] && redstar_extra="--enable-mpi"
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install} --with-colorvec=${installdir}/${colorvec_install} $redstar_extra
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
