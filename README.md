@@ -250,6 +250,11 @@ module load nvhpc-mixed
 module load cmake
 ./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80
 
+# Kuro
+module load openmpi-ib/gcc-11.4.1/4.1.6
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/kuro/gcc-11.4.1/openmpi-4.1.6-gt24wp/lib
+./chromaform gcc chroma --mg CC=mpicc CXX=mpicxx FC=gfortran OMPI_CC=gcc OMPI_CXX=g++ --env=env_extra.sh
+
 # Femto (W&M)
 module purge
 module load modules
