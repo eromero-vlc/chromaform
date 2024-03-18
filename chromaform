@@ -402,6 +402,8 @@ detect_fortran_compiler() {
 		compiler="flang"
 	elif ( $FC --version 2>&1 | grep -q 'oneAPI' ); then
 		compiler="icc"
+	elif ( $FC --version 2>&1 | grep -q 'IFX' ); then
+		compiler="icc"
 	fi
 	echo $compiler
 }
@@ -713,10 +715,10 @@ fi
 if [ ${use_autoflags} == yes ]; then
 	info "No CPU architecture given; guessing ..."
 	if [ x${use_march}x == xx ]; then
-		if grep -q "AMD EPYC 7..4" /proc/cpuinfo ; then
+		if grep -q "AMD EPYC ...4" /proc/cpuinfo ; then
 			info "Detected AMD zen4"
 			use_march="zen4"
-		elif grep -q "AMD EPYC 7..3" /proc/cpuinfo ; then
+		elif grep -q "AMD EPYC ...3" /proc/cpuinfo ; then
 			info "Detected AMD zen3"
 			use_march="zen3"
 		elif grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
@@ -785,10 +787,6 @@ if [ ${use_autoflags} == yes ]; then
 		esac
 	elif [ ${use_march} == zen2 ]; then
 		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX2"
-			CFLAGS+=" -xCORE-AVX2"
-			;;
 		*)
 			CXXFLAGS+=" -march=znver2"
 			CFLAGS+=" -march=znver2"
@@ -796,10 +794,6 @@ if [ ${use_autoflags} == yes ]; then
 		esac
 	elif [ ${use_march} == zen3 ]; then
 		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX2"
-			CFLAGS+=" -xCORE-AVX2"
-			;;
 		*)
 			CXXFLAGS+=" -march=znver3"
 			CFLAGS+=" -march=znver3"
@@ -807,10 +801,6 @@ if [ ${use_autoflags} == yes ]; then
 		esac
 	elif [ ${use_march} == zen4 ]; then
 		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX512"
-			CFLAGS+=" -xCORE-AVX512"
-			;;
 		*)
 			CXXFLAGS+=" -march=znver4"
 			CFLAGS+=" -march=znver4"
@@ -1546,24 +1536,22 @@ if [ x${openblas}x != xx ]; then
 	fi
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
-	# Link statically when the compiler used is the same than for the rest of the packages
-	if [ `detect_compiler` != gcc -a x${openblas_use_gcc} == xyes ]; then
-		LIBS+=" -L${idir}/lib -lopenblas -lm -lpthread"
-		if [ x${do_export_env}x != xx ]; then
-			cat << EOF >> $do_export_env
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
 # For openblas
 export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
 EOF
-		fi
-	else
-		LIBS+=" -L${idir}/lib -lopenblas -lm -lpthread"
 	fi
+	LIBS+=" -L${idir}/lib -lopenblas -lm -lpthread"
 	LDFLAGS+=" -L${idir}/lib"
 	if [ `detect_fortran_compiler` == gcc -o `detect_fortran_compiler` == nvc -o x${openblas_use_gcc} == xyes ]; then
 		LIBS+=" -lgfortran -lgomp"
+	elif [ `detect_fortran_compiler` == icc ]; then
+		LIBS+=" -limf -lintlc"
 	else
 		LIBS+=" -lpgmath -lflang -lflangrti -lm"
 	fi
+	export LD_LIBRARY_PATH="$idir/lib:$LD_LIBRARY_PATH"
 fi
 
 case $use_blas in
@@ -2033,7 +2021,13 @@ if [ x${qphix}x != xx ]; then
 	elif [ ${qphix} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
-		pushd $bdir
+		(
+		cd $bdir
+		py3="`mktemp`"
+		$PYTHON -mvenv $py3
+		. $py3/bin/activate
+		pip install --upgrade pip
+		pip install jinja2
 		run cmake -Disa=${qphix_isa} \
 		      -Dhost_cxx=${CXX} \
 		      -Dhost_cxxflags="" \
@@ -2052,7 +2046,7 @@ if [ x${qphix}x != xx ]; then
 		      ${CMAKE_EXTRA_FLAGS} \
 		      ${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
-		popd
+		)
 	fi
 fi
 
