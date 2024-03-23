@@ -1127,7 +1127,7 @@ openmpi                https://download.open-mpi.org/release/open-mpi/v5.0/openm
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
 automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
-anarchofs              https://github.com/eromero-vlc/anarchofs.git   main
+anarchofs              https://github.com/eromero-vlc/anarchofs.git   eloy/daemonless
 libfuse3               https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
 EOF
 	do
