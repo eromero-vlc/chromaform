@@ -593,8 +593,8 @@ if [ x${use_llvm}x == xx ]; then
     elif llvm-config --version &> /dev/null ; then
         llvm_ver="`llvm-config --version`"
         case $llvm_ver in
-	13*|14*|15*) use_llvm="llvm-system" ;;
-        *)           use_llvm="llvm";;
+	13*|14*|15*|16*|17*) use_llvm="llvm-system" ;;
+        *)                   use_llvm="llvm";;
         esac
     else
         use_llvm="llvm"
@@ -1100,7 +1100,7 @@ mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2
-cmake                  https://github.com/Kitware/CMake/releases/download/v3.27.6/cmake-3.27.6.tar.gz
+cmake                  https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3.tar.gz
 llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
 llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
 llvm-15                https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/llvm-15.0.7.src.tar.xz
@@ -1808,6 +1808,7 @@ if [ x${qdp}x != xx ]; then
         		case $rocm_ver in
 			5.1*) qdp_extra+=" -DQDP_ROCM5FIX=ON -DQDP_ROCM_PRE=ON" ;;
 			5.0*|4.*) qdp_extra+=" -DQDP_ROCM_PRE=ON" ;;
+			5.5*) qdp_extra+=" -DQDP_ROCM553FIX=ON" ;;
         		esac
 			;;
 		esac
@@ -1816,6 +1817,7 @@ if [ x${qdp}x != xx ]; then
 		14*) qdp_extra+=" -DQDP_ENABLE_LLVM14=ON" ;;
 		15*) qdp_extra+=" -DQDP_ENABLE_LLVM15=ON" ;;
 		16*) qdp_extra+=" -DQDP_ENABLE_LLVM16=ON" ;;
+		17*) qdp_extra+=" -DQDP_ENABLE_LLVM17=ON" ;;
         	esac
 	fi
 	use_qdp_cmake="nop"
@@ -1897,7 +1899,8 @@ if [ x${quda}x != xx ]; then
 				-DQUDA_GPU_ARCH=$AMDGPU_TARGETS \
 				-DQUDA_BUILD_SHAREDLIB=ON \
 				-DMPI_C_COMPILER=${CC} \
-				-DMPI_CXX_COMPILER=${CXX}"
+				-DMPI_CXX_COMPILER=${CXX} \
+				-DROCM_PATH=`$HIPCONFIG -R`"
 			# Avoid compiling issue in QUDA
 			quda_extra_args+=" -DQUDA_OPENMP=OFF"
 		fi
