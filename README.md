@@ -238,6 +238,7 @@ module load CMake/3.18.0
 
 # Perlmutter CPU
 module load cmake
+module load craype-accel-host
 ./chromaform --mg --superb chroma CC=cc CXX=CC FC=ftn
 
 # Perlmutter GPU
