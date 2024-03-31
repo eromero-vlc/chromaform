@@ -817,6 +817,11 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -qopenmp"
 			LDFLAGS+=" -qopenmp"
 			;;
+		clang)
+			CXXFLAGS+=" -fopenmp -fopenmp=libomp -fopenmp-targets=x86_64"
+			CFLAGS+=" -fopenmp -fopenmp=libomp -fopenmp-targets=x86_64"
+			LDFLAGS+=" -fopenmp -fopenmp=libomp -fopenmp-targets=x86_64"
+			;;
 		*)
 			CXXFLAGS+=" -fopenmp"
 			CFLAGS+=" -fopenmp"
@@ -1066,7 +1071,7 @@ EOF
 do
         cat << EOF | while read name repo branch
 qdpxx                  https://github.com/usqcd-software/qdpxx         devel
-qdp-jit                https://github.com/JeffersonLab/qdp-jit         devel
+qdp-jit                https://github.com/JeffersonLab/qdp-jit         devel-llvm17
 qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concepts
 qmp                    https://github.com/usqcd-software/qmp           devel
 chroma                 https://github.com/JeffersonLab/chroma          devel

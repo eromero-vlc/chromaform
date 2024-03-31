@@ -206,11 +206,13 @@ module load cmake
 
 # Lumi and Adastra (MI250)
 module load PrgEnv-amd
+module load amd/5.5.1
 module load gcc-mixed
 module load craype-accel-amd-gfx90a
 
-./chromaform --hip --mg openblas-gcc chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
-./chromaform --hip openblas-gcc redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
+# NOTE: 
+./chromaform --zen3 --hip --mg --superb automake openblas-gcc chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC="`which cc`" CXX=CC FC=ftn --env=env_extra.sh
+./chromaform --zen3 --hip openblas-gcc redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
 
 # Default environment at TACC Frontera
 ./chromaform --avx512 --mg --superb chroma
