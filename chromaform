@@ -386,6 +386,8 @@ detect_compiler() {
 		compiler="icc"
 	elif ( $CXX -v 2>&1 | grep -q 'oneAPI' ); then
 		compiler="icc"
+	elif ( $CXX -v 2>&1 | grep -q 'oneAPI DPC' ); then
+		compiler="icx"
 	fi
 	echo $compiler
 }
@@ -400,9 +402,11 @@ detect_fortran_compiler() {
 		compiler="nvc"
 	elif ( $FC --version 2>&1 | grep -q 'flang[^ ]* version' ); then
 		compiler="flang"
-	elif ( $FC --version 2>&1 | grep -q 'oneAPI' ); then
-		compiler="icc"
 	elif ( $FC --version 2>&1 | grep -q 'IFX' ); then
+		compiler="icx"
+	elif ( $FC --version 2>&1 | grep -q 'ifx' ); then
+		compiler="icx"
+	elif ( $FC --version 2>&1 | grep -q 'oneAPI' ); then
 		compiler="icc"
 	fi
 	echo $compiler
@@ -1544,7 +1548,9 @@ EOF
 	fi
 	LIBS+=" -L${idir}/lib -lopenblas -lm -lpthread"
 	LDFLAGS+=" -L${idir}/lib"
-	if [ `detect_fortran_compiler` == gcc -o `detect_fortran_compiler` == nvc -o x${openblas_use_gcc} == xyes ]; then
+	if [ `detect_fortran_compiler` == icx ]; then
+		echo -n
+	elif [ `detect_fortran_compiler` == gcc -o `detect_fortran_compiler` == nvc -o x${openblas_use_gcc} == xyes ]; then
 		LIBS+=" -lgfortran -lgomp"
 	elif [ `detect_fortran_compiler` == icc ]; then
 		LIBS+=" -limf -lintlc"
