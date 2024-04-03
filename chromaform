@@ -382,12 +382,12 @@ detect_compiler() {
 		compiler="clang"
 	elif ( $CXX --version 2>&1 | grep -q '^nvc' ); then
 		compiler="nvc"
+	elif ( $CXX -v 2>&1 | grep -q 'oneAPI DPC' ); then
+		compiler="icx"
 	elif ( $CXX -v 2>&1 | grep -q '^icc version' ); then
 		compiler="icc"
 	elif ( $CXX -v 2>&1 | grep -q 'oneAPI' ); then
 		compiler="icc"
-	elif ( $CXX -v 2>&1 | grep -q 'oneAPI DPC' ); then
-		compiler="icx"
 	fi
 	echo $compiler
 }
