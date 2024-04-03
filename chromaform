@@ -2032,7 +2032,7 @@ if [ x${qphix}x != xx ]; then
 		run mkdir -p $bdir
 		(
 		cd $bdir
-		py3="`mktemp`"
+		py3="`mktemp -d`"
 		$PYTHON -mvenv $py3
 		. $py3/bin/activate
 		pip install --upgrade pip
