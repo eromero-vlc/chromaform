@@ -384,10 +384,12 @@ detect_compiler() {
 		compiler="nvc"
 	elif ( $CXX -v 2>&1 | grep -q 'oneAPI DPC' ); then
 		compiler="icx"
-	elif ( $CXX -v 2>&1 | grep -q '^icc version' ); then
+	elif ( $CXX -v 2>&1 | grep -q 'ICC' ); then
+		compiler="icc"
+	elif ( $CXX -v 2>&1 | grep -q 'icpc' ); then
 		compiler="icc"
 	elif ( $CXX -v 2>&1 | grep -q 'oneAPI' ); then
-		compiler="icc"
+		compiler="icx"
 	fi
 	echo $compiler
 }
@@ -407,7 +409,7 @@ detect_fortran_compiler() {
 	elif ( $FC --version 2>&1 | grep -q 'ifx' ); then
 		compiler="icx"
 	elif ( $FC --version 2>&1 | grep -q 'oneAPI' ); then
-		compiler="icc"
+		compiler="icx"
 	fi
 	echo $compiler
 }
@@ -744,6 +746,7 @@ if [ ${use_autoflags} == yes ]; then
 			fi
 		fi
 	fi
+	info "Detecting compiler...`detect_compiler`"
 	if [ ${use_march} == knl ]; then
 		# Active special tricks for a special architecture
 		case "`detect_compiler`" in
@@ -816,7 +819,7 @@ if [ ${use_autoflags} == yes ]; then
 	if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
 		# QDP is compiled with OpenMP, so we need to add the flag
 		case "`detect_compiler`" in
-		icc)
+		icc|icx)
 			CXXFLAGS+=" -qopenmp"
 			CFLAGS+=" -qopenmp"
 			LDFLAGS+=" -qopenmp"
