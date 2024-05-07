@@ -174,6 +174,16 @@ commands.
 ## Examples on clusters:
 
 ```bash
+# JLab 21g (MI100)
+# Note: OpenMPI and OpenBLAS are already installed but they are slow
+# Note: the zen2 flag is needed when compiling at qcdi2001
+module load rocm/5.1.3
+./chromaform --hip --zen2 --mg --superb openmpi openblas chroma MAKE_JN=30 AMDGPU_TARGETS='gfx908' --env=env-extra.sh CC=amdclang CXX=amdclang++ FC=amdflang
+
+# JLab 24s (sapphire rapids)
+module load mpi/openmpi-x86_64
+./chromaform --mg --superb chroma
+
 # JLab's KNLs and qcdi140X
 module load gcc-7.1.0 # (the loading of this module may fail while running, just add setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/dist/gcc-7.1.0/lib)
 # For bash compatible shell
@@ -183,12 +193,6 @@ source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.csh int
 # NOTE: the --knl flag is only needed when running on KNL
 ./chromaform --mg --knl --superb chroma CC=mpiicc CXX=mpiicpc FC=ifort
 ./chromaform --knl redstar CC=icc CXX=icpc FC=ifort
-
-# JLab 21g (MI100)
-# Note: OpenMPI and OpenBLAS are already installed but they are slow
-# Note: the zen2 flag is needed when compiling at qcdi2001
-module load rocm/5.1.3
-./chromaform --hip --zen2 --mg --superb openmpi openblas chroma MAKE_JN=30 AMDGPU_TARGETS='gfx908' --env=env-extra.sh CC=amdclang CXX=amdclang++ FC=amdflang
 
 # Frontier (MI250)
 module load PrgEnv-amd
