@@ -734,7 +734,10 @@ if [ ${use_autoflags} == yes ]; then
 			info "Detected POWER architecture"
 			use_march="power"
 		elif grep -q "vendor_id.*GenuineIntel" /proc/cpuinfo ; then
-			if grep -q "avx512" /proc/cpuinfo ; then
+			if grep -q "amx_bf16" /proc/cpuinfo ; then
+				info "Detected intel with avx512_fp16 support"
+				use_march="avx512_fp16"
+			elif grep -q "avx512" /proc/cpuinfo ; then
 				info "Detected intel with avx512 support"
 				use_march="avx512"
 			elif grep -q "avx2" /proc/cpuinfo ; then
@@ -757,6 +760,17 @@ if [ ${use_autoflags} == yes ]; then
 		*)
 			CXXFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
 			CFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			;;
+		esac
+	elif [ ${use_march} == avx512_fp16 ]; then
+		case "`detect_compiler`" in
+		icc)
+			CXXFLAGS+=" -xCORE-AVX512"
+			CFLAGS+=" -xCORE-AVX512"
+			;;
+		*)
+			CXXFLAGS+=" -march=sapphirerapids -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			CFLAGS+=" -march=sapphirerapids -mavx512f -mavx512pf -mavx512er -mavx512cd"
 			;;
 		esac
 	elif [ ${use_march} == avx512 ]; then
@@ -823,6 +837,8 @@ if [ ${use_autoflags} == yes ]; then
 			CXXFLAGS+=" -qopenmp"
 			CFLAGS+=" -qopenmp"
 			LDFLAGS+=" -qopenmp"
+			export OPENMP_CFLAGS=-qopenmp
+			export OPENMP_CXXFLAGS=-qopenmp
 			;;
 		*)
 			CXXFLAGS+=" -fopenmp"
@@ -1129,8 +1145,8 @@ gcc                    http://mirror.rit.edu/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.x
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
-ucx                    https://github.com/openucx/ucx/releases/download/v1.15.0/ucx-1.15.0.tar.gz
-openmpi                https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.2.tar.bz2
+ucx                    https://github.com/openucx/ucx/releases/download/v1.16.0/ucx-1.16.0.tar.gz
+openmpi                https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.3.tar.bz2
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
 automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
@@ -1263,7 +1279,8 @@ if [ x${ucx}x != xx ]; then
 		cuda) ucx_extra+=" --with-cuda=$CUDADIR" ;;
 		hip) ucx_extra+=" --with-rocm=`hipconfig -R`" ;;
 		esac
-		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --without-java --enable-cma --with-verbs --without-xpmem --disable-doxygen-doc $ucx_extra
+		sed -i 's/-Werror//g' ${sdir}/configure
+		CFLAGS= CXXFLAGS= LDFLAGS= LIBS= run ${sdir}/configure --prefix=${idir} --without-java --enable-cma --with-verbs --enable-mt --without-xpmem --disable-doxygen-doc $ucx_extra
 		run ${MYMAKE} -j $MAKE_JN
 		run ${MYMAKE} install
 		popd
@@ -1294,6 +1311,9 @@ if [ x${openmpi}x != xx ]; then
 		case $use_opt in
 		debug) openmpi_extra="--enable-debug" ;;
 		opt) openmpi_extra="--disable-debug" ;;
+		esac
+		case "`detect_compiler`" in
+		gcc) openmpi_extra+=" --enable-builtin-atomics" ;;
 		esac
 		case $use_arch in
 		cpu) ;;
@@ -2015,7 +2035,7 @@ fi
 
 if [ x${qphix}x != xx ]; then
 	case ${use_march} in
-	avx512|knl|zen4)qphix_isa="avx512";;
+	avx512*|knl|zen4)qphix_isa="avx512";;
 	avx2|zen2|zen3) qphix_isa="avx2";;
 	avx)            qphix_isa="avx" ;;
 	*)
@@ -2035,11 +2055,11 @@ if [ x${qphix}x != xx ]; then
 		run mkdir -p $bdir
 		(
 		cd $bdir
-		py3="`mktemp -d`"
-		$PYTHON -mvenv $py3
-		. $py3/bin/activate
-		pip install --upgrade pip
-		pip install jinja2
+		#py3="`mktemp -d`"
+		#$PYTHON -mvenv $py3
+		#. $py3/bin/activate
+		#pip install --upgrade pip
+		#pip install jinja2
 		run cmake -Disa=${qphix_isa} \
 		      -Dhost_cxx=${CXX} \
 		      -Dhost_cxxflags="" \
