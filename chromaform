@@ -2055,11 +2055,12 @@ if [ x${qphix}x != xx ]; then
 		run mkdir -p $bdir
 		(
 		cd $bdir
-		#py3="`mktemp -d`"
-		#$PYTHON -mvenv $py3
-		#. $py3/bin/activate
-		#pip install --upgrade pip
-		#pip install jinja2
+		py3="${builddir}/jinja2"
+		rm -rf $py3
+		$PYTHON -mvenv $py3
+		. $py3/bin/activate
+		pip install --upgrade pip
+		$py3/bin/pip install jinja2
 		run cmake -Disa=${qphix_isa} \
 		      -Dhost_cxx=${CXX} \
 		      -Dhost_cxxflags="" \
@@ -2072,7 +2073,7 @@ if [ x${qphix}x != xx ]; then
 		      -Dqdpalloc=FALSE \
 		      -Dqdpjit=FALSE \
 		      -Dtesting=OFF \
-		      -DPYTHON_EXECUTABLE="$( which python3 )" \
+		      -DPYTHON_EXECUTABLE="$( which python )" \
 		      -DPYTHON_INCLUDE_DIR=/usr/include \
 		      -DPYTHON_LIBRARY=/usr/lib \
 		      ${CMAKE_EXTRA_FLAGS} \
