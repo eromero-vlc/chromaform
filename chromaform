@@ -1094,8 +1094,7 @@ qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concep
 qmp                    https://github.com/usqcd-software/qmp           devel
 chroma                 https://github.com/JeffersonLab/chroma          devel
 chroma-sp              https://github.com/JeffersonLab/chroma          eloy/mgproton
-#chroma-restructure     https://github.com/JeffersonLab/chroma          restructure
-chroma-restructure     https://github.com/JeffersonLab/chroma          restructure-fix-qdp-jit-issue
+chroma-restructure     https://github.com/JeffersonLab/chroma          restructure
 chroma-fs-sp           https://github.com/twLQCD/chroma.git            travis/mgproton-progress-blocking-fs
 chroma                 https://github.com/JeffersonLab/chroma          devel
 qphix                  https://github.com/JeffersonLab/qphix           devel
@@ -1701,9 +1700,17 @@ if [ x${libxml2}x != xx ]; then
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
 	LIBS+=" -L${idir}/lib -lxml2"
-	LD_LIBRARY_PATH+=":${idir}/lib"
-	PKG_CONFIG_PATH+=":${idir}/lib/pkgconfig"
-	PATH+=":${idir}/bin"
+	LD_LIBRARY_PATH="${idir}/lib:$LD_LIBRARY_PATH"
+	PKG_CONFIG_PATH="${idir}/lib/pkgconfig:$PKG_CONFIG_PATH"
+	PATH="${idir}/bin:$PATH"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For libxml2
+export PATH="$idir/bin:\$PATH"
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+export PKG_CONFIG_PATH="$idir/lib/pkgconfig:\$PKG_CONFIG_PATH"
+EOF
+	fi
 fi
 
 
