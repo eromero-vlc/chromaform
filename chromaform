@@ -599,7 +599,7 @@ if [ x${use_llvm}x == xx ]; then
     elif llvm-config --version &> /dev/null ; then
         llvm_ver="`llvm-config --version`"
         case $llvm_ver in
-	13*|14*|15*|16*|17*) use_llvm="llvm-system" ;;
+	13*|14*|15*)         use_llvm="llvm-system" ;;
         *)                   use_llvm="llvm";;
         esac
     else
@@ -950,10 +950,7 @@ if [ x${cmake}x != xx ]; then
 	cmake_src="cmake"
 fi
 if [ x${llvm}x != xx ]; then
-	llvm_src="llvm-15"
-	llvm_cmake_src="llvm_cmake"
-	lld_src="lld"
-	unwind_src="unwind"
+	llvm_src="llvm"
 fi
 if [ x${cub}x != xx ]; then
 	cub_src="cub"
@@ -1123,12 +1120,7 @@ mugiq                  https://github.com/eromero-vlc/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2
 cmake                  https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3.tar.gz
-llvm-11                https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/llvm-11.1.0.src.tar.xz
-llvm-13                https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.1/llvm-13.0.1.src.tar.xz
-llvm-15                https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/llvm-15.0.7.src.tar.xz
-llvm_cmake             https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/cmake-15.0.7.src.tar.xz
-lld                    https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/lld-15.0.7.src.tar.xz
-unwind                 https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/libunwind-15.0.7.src.tar.xz
+llvm                   https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/llvm-project-17.0.6.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
@@ -1471,28 +1463,24 @@ if [ x${llvm}x != xx ]; then
 	elif [ ${llvm} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
-		# Fix compilation of LLVM 15, https://discourse.llvm.org/t/issues-compiling-15-0-7/69255
-		mkdir -p $sdir/cmake/modules
-		cp -r ${srcdir}/${llvm_cmake_src}/Modules/* $sdir/cmake/modules
-		# Fix compilation of lld
-		[ -f ${srcdir}/${lld_src}/MachO/mach-o ] || ln -s ${srcdir}/${unwind_src}/include/mach-o ${srcdir}/${lld_src}/MachO/mach-o
 		# Decide target
 		llvm_targets="X86"
 		[ $use_arch == cuda ] && llvm_targets="NVPTX;X86"
 		[ $use_arch == hip ] && llvm_targets="AMDGPU;X86"
 		pushd $bdir
-		run cmake \
+		CFLAGS= CXXFLAGS= run cmake \
 		      -DLLVM_ENABLE_TERMINFO="OFF" \
 		      -DCMAKE_BUILD_TYPE=Release \
 		      -DCMAKE_INSTALL_PREFIX=${idir} \
 		      -DLLVM_TARGETS_TO_BUILD="${llvm_targets}" \
 		      -DLLVM_ENABLE_ZLIB="OFF" \
 		      -DBUILD_SHARED_LIBS="OFF" \
-		      -DLLVM_ENABLE_RTTI="ON"  \
-		      -DLLVM_ENABLE_PROJECTS="lld" -DLLVM_EXTERNAL_LLD_SOURCE_DIR="${srcdir}/${lld_src}" \
+		      -DLLVM_ENABLE_RTTI="OFF"  \
+		      -DLLVM_ENABLE_PROJECTS="llvm;lld" \
 		      -DLLVM_INCLUDE_BENCHMARKS=OFF \
 		      -DLLVM_ENABLE_LIBEDIT=OFF \
-		      $sdir
+		      -DCMAKE_CXX_COMPILER="g++" -DCMAKE_C_COMPILER="gcc" \
+		      $sdir/llvm
 		run ${MYMAKE} -j $MAKE_JN
 		run ${MYMAKE} install
 		popd
@@ -1839,7 +1827,7 @@ if [ x${qdp}x != xx ]; then
 			qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ALIGNMENT_SIZE=128"
 			;;
 		hip)
-			qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS} -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DQDP_PROP_OPT=OFF"
+			qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS} -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DQDP_PROP_OPT=OFF -DROCM_PATH=`$HIPCONFIG -R`"
         		rocm_ver="`hipconfig --version`"
         		case $rocm_ver in
 			5.1*) qdp_extra+=" -DQDP_ROCM5FIX=ON -DQDP_ROCM_PRE=ON" ;;
@@ -2140,15 +2128,14 @@ if [ x${primme}x != xx ]; then
 		cuda)
 			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" CUDADIR="$CUDADIR" ;;
 		hip)
-			CFLAGS_primme="${CFLAGS//-?openmp/} -fPIC"
-			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS_primme" ROCMDIR="`$HIPCONFIG -R`" ;;
+			run $MYMAKE -C ${bdir} lib install_static PREFIX=${idir} -j $MAKE_JN CC="$CXX" CFLAGS="$CXXFLAGS -fPIC" ROCMDIR="`$HIPCONFIG -R`" ;;
 		esac
-		run rm ${idir}/lib/libprimme.so*
+		run rm -f ${idir}/lib/libprimme.so*
 		run cp ${bdir}/lib/libprimme.a ${idir}/lib
 	fi
 	CFLAGS+=" -I${installdir}/${primme_install}/include"
 	CXXFLAGS+=" -I${installdir}/${primme_install}/include"
-	LIBS="${installdir}/${primme_install}/lib/libprimme.a $LIBS"
+	LIBS="-L${installdir}/${primme_install}/lib -lprimme $LIBS"
 fi
 
 if [ x${xsimd}x != xx ]; then
