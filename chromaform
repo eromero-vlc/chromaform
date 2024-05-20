@@ -769,8 +769,8 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -xCORE-AVX512"
 			;;
 		*)
-			CXXFLAGS+=" -march=sapphirerapids -mavx512f -mavx512pf -mavx512er -mavx512cd"
-			CFLAGS+=" -march=sapphirerapids -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			CXXFLAGS+=" -march=sapphirerapids"
+			CFLAGS+=" -march=sapphirerapids"
 			;;
 		esac
 	elif [ ${use_march} == avx512 ]; then
@@ -780,8 +780,8 @@ if [ ${use_autoflags} == yes ]; then
 			CFLAGS+=" -xCORE-AVX512"
 			;;
 		*)
-			CXXFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
-			CFLAGS+=" -march=skylake-avx512 -mavx512f -mavx512pf -mavx512er -mavx512cd"
+			CXXFLAGS+=" -march=skylake-avx512"
+			CFLAGS+=" -march=skylake-avx512"
 			;;
 		esac
 	elif [ ${use_march} == avx2 ]; then
@@ -1141,7 +1141,7 @@ libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2
 xsimd                  https://github.com/xtensor-stack/xsimd.git	12.1.1
 ncurses                https://ftp.gnu.org/gnu/ncurses/ncurses-6.2.tar.gz
 mpfr                   https://www.mpfr.org/mpfr-current/mpfr-4.2.1.tar.xz
-gcc                    http://mirror.rit.edu/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz
+gcc                    https://mirrors.ocf.berkeley.edu/gnu/gcc/gcc-14.1.0/gcc-14.1.0.tar.xz
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
@@ -2183,7 +2183,7 @@ if [ x${superbblas}x != xx ]; then
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
 		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
-		[ $use_arch != cpu ] && CXXFLAGS_sb="${CXXFLAGS//-std=c++??/} -std=c++14"
+		[ $use_arch != cpu ] && CXXFLAGS_sb="${CXXFLAGS_sb//-std=c++??/} -std=c++14"
 		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
 	fi
 	# Add flags to compile and link with HIP runtime and to link with clang openmp
@@ -2269,7 +2269,7 @@ if [ x${chroma}x != xx ]; then
 				--with-qmp=${installdir}/${qmp_install} \
 			        --enable-static-packed-gauge \
 			        --enable-fused-clover-deriv-loops \
-				$chroma_extra CXXFLAGS="$CXXFLAGS $sb_cxx_extra"
+				$chroma_extra
 		else
 			chroma_extra=""
 			[ $use_arch != cpu -a $use_mg == yes ] && chroma_extra="\
