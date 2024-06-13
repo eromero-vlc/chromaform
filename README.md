@@ -208,13 +208,34 @@ module load cmake
 module load cmake
 ./chromaform --mg --knl --superb chroma CC=cc CXX=CC
 
-# Lumi and Adastra (MI250)
+# Lumi (MI250)
 module load PrgEnv-amd
-module load gcc-mixed
+module load amd/5.5.1
 module load craype-accel-amd-gfx90a
 
-./chromaform --hip --mg openblas-gcc chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
-./chromaform --hip openblas-gcc redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
+./chromaform --hip --mg chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
+# NOTE: avoid using cray wrappers, they get confused with -fopenmp flags
+./chromaform --hip --mpi=no redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=amdclang CXX=amdclang++ FC=amdflang --env=env_extra.sh
+
+# Adastra (MI250)
+module load PrgEnv-amd
+module load amd/5.5.1
+module load craype-accel-amd-gfx90a
+
+# NOTE: Avoid compiling on the frontend because it is zen4 but gpu nodes are zen3.
+#       Instead, download all necessary packages in the frontend (with --downalod-only)
+#       and submit the compilation to a gpu node.
+
+# run on the frontend
+./chromaform --hip --mg chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --download-only
+# run on a gpu node
+./chromaform --hip --mg chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
+
+# run on the frontend
+./chromaform --hip --mpi=no redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=amdclang CXX=amdclang++ FC=amdflang --download-only
+# run on a gpu node
+# NOTE: avoid using cray wrappers, they get confused with -fopenmp flags
+./chromaform --hip --mpi=no redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=amdclang CXX=amdclang++ FC=amdflang --env=env_extra.sh
 
 # Default environment at TACC Frontera
 ./chromaform --avx512 --mg --superb chroma

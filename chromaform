@@ -185,6 +185,7 @@ use_libxml2=""
 use_libfuse3=""
 use_tinfo=""
 use_cmake=""
+use_mpi="yes"
 use_openmp=""
 use_autoflags="yes"
 use_opt="opt"
@@ -260,6 +261,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--blas=mkl) use_blas="mkl-system";;
 	--openmp=no) use_openmp="nop";;
 	--openmp=yes) use_openmp="yes";;
+	--mpi=no) use_mpi="nop";;
+	--mpi=yes) use_mpi="yes";;
 	--gmp=build) use_gmp="gmp";;
 	gmp) gmp="$action"; use_gmp="gmp";;
 	--gmp=system) use_gmp="gmp-system";;
@@ -704,6 +707,11 @@ if [ $use_superb_next == yes -a $use_restructure == yes ] ; then
 	exit 1
 fi
 
+if [ $use_mpi != yes -a x${qmp}${quda}${superbblas} != x ] ; then
+	echo "Incompatible options: --mpi=no and installing qmp, quda or superbblas"
+	exit 1
+fi
+
 [ x${qdp}x != xx -a $use_arch != cpu -a $use_tinfo == tinfo ] && ncurses="${ncurses:-update}"
 
 [ x${llvm}${qphix}${mgproto}${quda}${mugiq}${magma}x != xx -a $use_cmake == cmake ] && cmake="${cmake:-update}"
@@ -1125,7 +1133,7 @@ cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.ta
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-5.4.3.tar.gz
-openblas               https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.25/OpenBLAS-0.3.25.tar.gz
+openblas               https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.27/OpenBLAS-0.3.27.tar.gz
 cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.38.5.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
@@ -2328,7 +2336,8 @@ if [ x${adat}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		adat_extra=""
-		[ $use_superb == yes ] && adat_extra="--with-superbblas=${installdir}/${superbblas_install} --enable-mpi"
+		[ $use_superb == yes ] && adat_extra="--with-superbblas=${installdir}/${superbblas_install}"
+		[ $use_mpi == yes ] && adat_extra="--enable-mpi"
 		run ${sdir}/configure --prefix=${idir} $adat_extra
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -2348,7 +2357,7 @@ if [ x${colorvec}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		[ $use_superb == yes ] && colorvec_extra="--enable-mpi"
+		[ $use_mpi == yes ] && colorvec_extra="--enable-mpi"
 		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install} ${colorvec_extra}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
@@ -2368,7 +2377,7 @@ if [ x${redstar}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		[ $use_superb == yes ] && redstar_extra="--enable-mpi"
+		[ $use_mpi == yes ] && redstar_extra="--enable-mpi"
 		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install} --with-colorvec=${installdir}/${colorvec_install} $redstar_extra
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
