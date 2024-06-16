@@ -1612,7 +1612,7 @@ if [ x${tensor}x != xx ]; then
 		pushd $bdir
 		case "`detect_compiler`" in
 		icc) run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts CC=icc CXX=icpc ;;
-		*)   run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts ;;
+		*)   run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts F77=$FC ;;
 		esac
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
