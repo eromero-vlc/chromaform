@@ -1668,7 +1668,7 @@ if [ x${gmp}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --enable-cxx --disable-shared --with-pic CC=gcc CXX=g++
+		run ${sdir}/configure --prefix=${idir} --enable-cxx --disable-shared --with-pic CC=gcc CXX=g++ CFLAGS= CXXFLAGS= LDFLAGS= LIBS=
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
