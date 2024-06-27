@@ -589,25 +589,25 @@ if [ $use_arch == hip ]; then
 fi
 
 # Detect if there is a LLVM available in case the user does not give a clue
-# NOTE: before that, make sure that the LLVM on path in the one from rocm when using HIP
-
-if [ ${use_arch} == hip ] && [ `which llvm-config` != `hipconfig -R`/llvm/bin/llvm-config ]; then
-	export PATH="`hipconfig -R`/llvm/bin:$PATH"
-	export LD_LIBRARY_PATH="`hipconfig -R`/llvm/lib:$LD_LIBRARY_PATH"
-fi
+# NOTE: compile the mainstream llvm for llvm 17+ when using qdpjit
 
 if [ x${use_llvm}x == xx ]; then
-    if [ x${llvm}x != xx ]; then
+    if [ x${llvm}x != xx -o $use_arch != hip ]; then
         use_llvm="llvm"
-    elif llvm-config --version &> /dev/null ; then
-        llvm_ver="`llvm-config --version`"
+    else
+	llvm_ver="$( `hipconfig -R`/llvm/bin/llvm-config --version )"
         case $llvm_ver in
-	13*|14*|15*)         use_llvm="llvm-system" ;;
+	14*|15*|16*)         use_llvm="llvm-system" ;;
         *)                   use_llvm="llvm";;
         esac
-    else
-        use_llvm="llvm"
     fi
+fi
+
+# Make sure that the LLVM on path in the one from rocm when using HIP
+
+if [ ${use_arch} == hip -a $use_llvm == llvm-system -a `which llvm-config` != `hipconfig -R`/llvm/bin/llvm-config ]; then
+	export PATH="`hipconfig -R`/llvm/bin:$PATH"
+	export LD_LIBRARY_PATH="`hipconfig -R`/llvm/lib:$LD_LIBRARY_PATH"
 fi
 
 # Detect if there is thrust available in case the user does not give a clue.
@@ -669,7 +669,8 @@ fi
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
 [ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
-[ x${adat}${gcc}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
+[ x${adat}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
+[ x${gcc}x != xx ] && gmp="${gmp:-update}"
 [ x${adat}x != xx -a ${use_superb} == yes ] && superbblas="${superbblas:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
@@ -922,7 +923,13 @@ if [ x${qmp}x != xx ]; then
 fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
-	[ $use_arch != cpu -a $use_qdpjit == yes ] && qdp_src="qdp-jit"
+	if [ $use_arch != cpu -a $use_qdpjit == yes ] ; then
+	       	llvm_ver="`llvm-config --version`"
+        	case $llvm_ver in
+		14*|15*|16*) qdp_src="qdp-jit-prev-llvm17" ;;
+		*)           qdp_src="qdp-jit" ;;
+        	esac
+	fi
 fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
@@ -1095,7 +1102,7 @@ do
         cat << EOF | while read name repo branch
 qdpxx                  https://github.com/usqcd-software/qdpxx         devel
 qdp-jit                https://github.com/JeffersonLab/qdp-jit         devel
-qdp-jit-no-concepts    https://github.com/eromero-vlc/qdp-jit          no-concepts
+qdp-jit-prev-llvm17    https://github.com/JeffersonLab/qdp-jit         7c0cdf308dba714e544d4b1f0f5dc3d69e1b46df
 qmp                    https://github.com/usqcd-software/qmp           devel
 chroma                 https://github.com/JeffersonLab/chroma          devel
 chroma-sp              https://github.com/JeffersonLab/chroma          eloy/mgproton
@@ -1234,13 +1241,21 @@ if [ x${gcc}x != xx ]; then
 		[ -e ${sdir}/mpfr ] || ln -s ${srcdir}/${mpfr_src} ${sdir}/mpfr
 		[ -e ${sdir}/isl ] || ln -s ${srcdir}/${isl_src} ${sdir}/isl
 		[ -e ${sdir}/mpc ] || ln -s ${srcdir}/${mpc_src} ${sdir}/mpc
-		[ x${gmp}x != xx -a -f ${sdir}/gmp ] || ln -s ${srcdir}/${gmp_src} ${sdir}/gmp
+		[ -e ${sdir}/gmp ] || ln -s ${srcdir}/${gmp_src} ${sdir}/gmp
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --disable-bootstrap --disable-multilib --enable-languages="c,c++,fortran" CC=gcc CXX=g++ CFLAGS= CXXFLAGS= LDFLAGS=
-		run ${MYMAKE} -j $MAKE_JN
-		run ${MYMAKE} install
+		(
+			export CC=gcc
+			export CXX=g++
+			export CFLAGS=
+			export CXXFLAGS=
+			export LDFLAGS=
+			export LIBS=
+			run ${sdir}/configure --prefix=${idir} --disable-bootstrap --disable-multilib --enable-languages="c,c++,fortran" 
+			run ${MYMAKE} -j $MAKE_JN
+			run ${MYMAKE} install
+		)
 		popd
 	fi
 	export PATH=$idir/bin:$PATH
@@ -1495,6 +1510,7 @@ if [ x${llvm}x != xx ]; then
 	fi
 	export PATH=$idir/bin:$PATH
 	export LD_LIBRARY_PATH=$idir/lib:$LD_LIBRARY_PATH
+	export LDFLAGS="-L$idir/lib $LDFLAGS"
 	if [ x${do_export_env}x != xx ]; then
 		cat << EOF >> $do_export_env
 # For llvm
@@ -1822,14 +1838,14 @@ if [ x${qdp}x != xx ]; then
 	qdp_prec="double"
 	[ ${use_float} == yes ] && qdp_prec="single"
 	sdir="${srcdir}/${qdp_src}"
-	if [ $do_cleaning == nop -a $use_arch == cuda -a $qdp_src == qdp-jit ]; then
+	if [ $do_cleaning == nop -a $use_arch == cuda -a $use_qdpjit == yes ]; then
 		run rm -rf ${tmp}/h
 		run mkdir -p ${tmp}/h
 		run cp ${CUDADIR}/nvvm/libdevice/libdevice*bc ${tmp}/h/libdevice.bc
 		( cd $sdir && run bash ./pack_libdevice.sh ${tmp}/h )
 	fi
 	qdp_extra=""
-	if [ $qdp_src == qdp-jit ]; then
+	if [ $use_qdpjit == yes ]; then
 		case $use_arch in
 		cuda)
 			qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ALIGNMENT_SIZE=128"
@@ -1850,10 +1866,11 @@ if [ x${qdp}x != xx ]; then
 		15*) qdp_extra+=" -DQDP_ENABLE_LLVM15=ON" ;;
 		16*) qdp_extra+=" -DQDP_ENABLE_LLVM16=ON" ;;
 		17*) qdp_extra+=" -DQDP_ENABLE_LLVM17=ON" ;;
+		18*) qdp_extra+=" -DQDP_ENABLE_LLVM18=ON" ;;
         	esac
 	fi
 	use_qdp_cmake="nop"
-	[ ${qdp_src} == qdp-jit -o x${quda}x != xx ] && use_qdp_cmake="yes"
+	[ $use_qdpjit == yes -o x${quda}x != xx ] && use_qdp_cmake="yes"
 
 	for qdp_nd in 3 4 ; do
 		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
@@ -1937,7 +1954,7 @@ if [ x${quda}x != xx ]; then
 			quda_extra_args+=" -DQUDA_OPENMP=OFF"
 		fi
 		quda_extra_args+=" -DQUDA_QMP=ON -DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP"
-		[ $qdp_src == qdp-jit ] && quda_extra_args+=" -DQUDA_QDPJIT=ON -DQUDA_INTERFACE_QDPJIT=ON"
+		[ $use_qdpjit == yes ] && quda_extra_args+=" -DQUDA_QDPJIT=ON -DQUDA_INTERFACE_QDPJIT=ON"
 		quda_extra_args+=" -DQUDA_INTERFACE_QDP=ON -DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX"
 
 		# Hack, avoid downloading files
@@ -2278,7 +2295,7 @@ if [ x${chroma}x != xx ]; then
 				-DChroma_ENABLE_QUDA=ON \
 				-DQUDA_DIR=${installdir}/${quda_install}/lib/cmake/QUDA \
 				"
-			[ $qdp_src == qdp-jit ] && chroma_extra+=" -DChroma_ENABLE_JIT_CLOVER=ON"
+			[ $use_qdpjit == yes ] && chroma_extra+=" -DChroma_ENABLE_JIT_CLOVER=ON"
 			[ x${magma}x != xx ] && chroma_extra+=" -DChroma_ENABLE_MAGMA=ON -DMAGMA_DIR=${installdir}/${magma_install}"
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
