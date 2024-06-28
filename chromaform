@@ -174,7 +174,7 @@ use_pdf="nop"
 use_next="nop"
 use_restructure="nop"
 use_superb="nop"
-use_qdpjit="yes"
+use_qdpjit=""
 use_superb_next="nop"
 use_mg="nop"
 use_llvm=""
@@ -233,7 +233,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--cpu) use_arch="cpu";;
 	--jit|--cuda) use_arch="cuda";;
 	--hip) use_arch="hip";;
-	--qdpjit=no) use_qdpjit="no";;
+	--qdpjit=no) use_qdpjit="nop";;
+	--qdpjit=yes) use_qdpjit="yes";;
 	--restructure) use_restructure="yes";;
 	--superb) use_superb="yes";use_superb_next="nop";;
 	--superb-next) use_superb="yes";use_superb_next="yes";;
@@ -368,10 +369,18 @@ else
 	fi
 fi
 
+# Set the default for the use of qdp-jit
+
+if [ x$use_qdpjit == x ] ; then
+	use_qdpjit=nop
+	[ $use_arch != cpu ] && use_qdpjit=yes
+fi
+
 # Add extra flags
 
 if [ x${use_std}x == xx ]; then
 	use_std="c++14"
+	# qdp-jit needs c++20
 	[ $use_arch != cpu -a $use_qdpjit == yes ] && use_std="c++20"
 fi
 
@@ -605,9 +614,11 @@ fi
 
 # Make sure that the LLVM on path in the one from rocm when using HIP
 
-if [ ${use_arch} == hip -a $use_llvm == llvm-system -a `which llvm-config` != `hipconfig -R`/llvm/bin/llvm-config ]; then
-	export PATH="`hipconfig -R`/llvm/bin:$PATH"
-	export LD_LIBRARY_PATH="`hipconfig -R`/llvm/lib:$LD_LIBRARY_PATH"
+if [ ${use_arch} == hip -a $use_llvm == llvm-system ] ; then
+	if [ `which llvm-config` != `hipconfig -R`/llvm/bin/llvm-config ] ; then
+		export PATH="`hipconfig -R`/llvm/bin:$PATH"
+		export LD_LIBRARY_PATH="`hipconfig -R`/llvm/lib:$LD_LIBRARY_PATH"
+	fi
 fi
 
 # Detect if there is thrust available in case the user does not give a clue.
@@ -676,7 +687,7 @@ fi
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
-[ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && llvm_cmake="${llvm_cmake:-update}" && lld="${lld:-update}" && unwind="${unwind:-update}"
+[ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && lld="${lld:-update}" && unwind="${unwind:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_superb_next == yes ] && xsimd="${xsimd:-update}"
@@ -1056,7 +1067,6 @@ fi
 cat << EOF | while read act proj
 $cmake        $cmake_src
 $llvm         $llvm_src
-$llvm_cmake   $llvm_cmake_src
 $lld          $lld_src
 $unwind       $unwind_src
 $cub          $cub_src
