@@ -1801,7 +1801,7 @@ fi
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
 	use_qmp_cmake="nop"
-	[ ${qdp_src} == qdp-jit -o x${quda}x != xx ] && use_qmp_cmake="yes"
+	[ ${qdp_src} != qdpxx -o x${quda}x != xx ] && use_qmp_cmake="yes"
 	[ ${use_qmp_cmake} == yes ] && qmp_install="qmp-cmake"
 	sdir="${srcdir}/${qmp_src}"
 	bdir="${builddir}/${qmp_install}"
@@ -1885,7 +1885,7 @@ if [ x${qdp}x != xx ]; then
 			run mkdir -p $bdir
 			pushd $bdir
 			if [ $qdp_src == qdpxx -a ${use_qdp_cmake} == nop ]; then
-				[ $qdp_src == qdpxx ] && ( cd $sdir && run autoreconf -f )
+				( cd $sdir && run autoreconf -f )
 				run ${sdir}/configure \
 					--prefix=${idir} \
         				--enable-Nd=$qdp_nd \
