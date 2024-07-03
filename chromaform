@@ -1599,6 +1599,7 @@ EOF
 	elif [ `detect_fortran_compiler` == icc ]; then
 		LIBS+=" -limf -lintlc"
 	else
+		[ $use_arch == hip ] && LIBS+=" `llvm-config --ldflags`"
 		LIBS+=" -lpgmath -lflang -lflangrti -lm"
 	fi
 	export LD_LIBRARY_PATH="$idir/lib:$LD_LIBRARY_PATH"
