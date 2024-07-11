@@ -311,6 +311,9 @@ for (( i=1 ; i<=n ; ++i )); do
 	libxml2) libxml2="$action";use_libxml2="libxml2";;
 	libfuse3) libfuse3="$action";use_libfuse3="libfuse3";;
 	anarchofs) anarchofs="$action";;
+	hdf5) hdf5="$action";;
+	gsl) gsl="$action";;
+	analysis) analysis="$action"; use_pdf="yes";;
 	gcc) gcc="$action";;
 	openmpi) openmpi="$action";;
 	mvapich2) mvapich2="$action";;
@@ -675,8 +678,9 @@ fi
 [ x${chroma}x != xx -a x${superbblas}x != xx ] && primme="${primme:-update}"
 [ x${mgproto}x != xx ] && primme="${primme:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
-[ x${qphix}${quda}x != xx ] && eigen="${eigen:-update}"
+[ x${qphix}${quda}${analysis}x != xx ] && eigen="${eigen:-update}"
 
+[ x${analysis}x != xx ] && redstar="${redstar:-update}" && hdf5="${hdf5:-update}" && gsl="${gsl:-update}"
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
 [ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
@@ -686,6 +690,7 @@ fi
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
+
 
 [ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && lld="${lld:-update}" && unwind="${unwind:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
@@ -1043,6 +1048,15 @@ fi
 if [ x${anarchofs}x != xx ]; then
 	anarchofs_src="anarchofs"
 fi
+if [ x${analysis}x != xx ]; then
+	analysis_src="analysis"
+fi
+if [ x${hdf5}x != xx ]; then
+	hdf5_src="hdf5"
+fi
+if [ x${gsl}x != xx ]; then
+	gsl_src="gsl"
+fi
 if [ x${libfuse3}x != xx ]; then
 	libfuse3_src="libfuse3"
 fi
@@ -1107,6 +1121,9 @@ $mvapich2     $mvapich2_src
 $automake     $automake_src
 $anarchofs    $anarchofs_src
 $libfuse3     $libfuse3_src
+$analysis     $analysis_src
+$gsl          $gsl_src
+$hdf5         $hdf5_src
 EOF
 do
         cat << EOF | while read name repo branch
@@ -1168,6 +1185,10 @@ autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
 automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
 anarchofs              https://github.com/eromero-vlc/anarchofs.git   eloy/daemonless
 libfuse3               https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
+analysis               https://github.com/eromero-vlc/analysis.git eloy/new-makefile
+##analysis               https://github.com/CEgerer93/analysis.git master
+gsl                    https://ftp.gnu.org/gnu/gsl/gsl-2.8.tar.gz
+hdf5                   https://github.com/HDFGroup/hdf5/releases/download/hdf5_1.14.4.3/hdf5.tar.gz
 EOF
 	do
 		[ x${proj}x != x${name}x ] && continue
@@ -1485,6 +1506,7 @@ EOF
 	fi
 fi
 
+
 if [ x${llvm}x != xx ]; then
 	llvm_install="llvm"
 	sdir="${srcdir}/${llvm_src}"
@@ -1612,6 +1634,37 @@ case $use_blas in
 esac
 CMAKE_EXTRA_FLAGS="-DBLA_STATIC=ON -DBLA_VENDOR=$blas $cmake_blas_extra $CMAKE_EXTRA_FLAGS" 
 
+if [ x${gsl}x != xx ]; then
+	gsl_install="${gsl_src}"
+	sdir="${srcdir}/${gsl_src}"
+	bdir="${builddir}/${gsl_install}"
+	idir="${installdir}/${gsl_install}"
+	info "Doing ${gsl} gsl; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${gsl} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${gsl} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --disable-shared --enable-static --with-pic
+		run ${MYMAKE} -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LIBS="-L${idir}/lib -lgsl -lgslcblas -lm -ldl $LIBS"
+	LD_LIBRARY_PATH+=":${idir}"
+	PKG_CONFIG_PATH+=":${idir}/lib/pkgconfig"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For gsl
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+	fi
+fi
+
+
 if [ x${boost}x != xx ]; then
 	boost_install="boost"
 	sdir="${srcdir}/${boost_src}"
@@ -1722,7 +1775,7 @@ if [ x${libxml2}x != xx ]; then
 	fi
 	CFLAGS+=" -I${idir}/include"
 	CXXFLAGS+=" -I${idir}/include"
-	LIBS+=" -L${idir}/lib -lxml2"
+	LIBS="-L${idir}/lib -lxml2 $LIBS"
 	LD_LIBRARY_PATH="${idir}/lib:$LD_LIBRARY_PATH"
 	PKG_CONFIG_PATH="${idir}/lib/pkgconfig:$PKG_CONFIG_PATH"
 	PATH="${idir}/bin:$PATH"
@@ -1736,6 +1789,33 @@ EOF
 	fi
 fi
 
+if [ x${hdf5}x != xx ]; then
+	hdf5_install="${hdf5_src}"
+	sdir="${srcdir}/${hdf5_src}"
+	bdir="${builddir}/${hdf5_install}"
+	idir="${installdir}/${hdf5_install}"
+	info "Doing ${hdf5} hdf5; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${hdf5} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${hdf5} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --disable-shared --enable-static --with-pic --enable-cxx --disable-tests --disable-tools --without-zlib --without-szlib
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+	CFLAGS+=" -I${idir}/include"
+	CXXFLAGS+=" -I${idir}/include"
+	LIBS="-L${idir}/lib -lhdf5 -lhdf5_cpp -lhdf5_hl -lhdf5_hl_cpp -ldl $LIBS"
+	LD_LIBRARY_PATH+=":${idir}"
+	if [ x${do_export_env}x != xx ]; then
+		cat << EOF >> $do_export_env
+# For hdf5
+export LD_LIBRARY_PATH="$idir/lib:\$LD_LIBRARY_PATH"
+EOF
+	fi
+fi
 
 if [ x${libfuse3}x != xx ]; then
 	libfuse3_install="${libfuse3_src}"
@@ -2408,6 +2488,24 @@ if [ x${redstar}x != xx ]; then
 		[ $use_mpi == yes ] && redstar_extra="--enable-mpi"
 		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-adat=${installdir}/${adat_install} --with-colorvec=${installdir}/${colorvec_install} $redstar_extra
 		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+	PATH+=":${idir}/bin"
+fi
+
+if [ x${analysis}x != xx ]; then
+	analysis_install="${analysis_src}"
+	sdir="${srcdir}/${analysis_src}"
+	bdir="${builddir}/${analysis_install}"
+	idir="${installdir}/${analysis_install}"
+	info "Doing ${analysis} analysis; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${analysis} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${analysis} == install -o ! -d ${idir} ]; then
+		run rm -rf $bdir $idir
+		cp -r $sdir $bdir
+		pushd $bdir
+		run make PREFIX="${idir}" EIGEN="${srcdir}/${eigen_src}" HDF5_INCLUDE= HDF5_LIBS= GSL_INCLUDE= GSL_LIBS=
 		popd
 	fi
 fi
