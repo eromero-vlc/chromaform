@@ -696,7 +696,7 @@ fi
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
 [ x${superbblas}x != xx -a $use_superb_next == yes ] && xsimd="${xsimd:-update}"
-[ x${superbblas}x != xx ] && anarchofs="${anarchofs:-update}"
+[ x${superbblas}x != xx -a ${use_mpi} == yes ] && anarchofs="${anarchofs:-update}"
 if [ $use_blas != openblas -a x${openblas}x != xx ]; then
 	echo "Incompatible options: --blas!=openblas but also asking for compiling openblas"
 	exit 1
@@ -724,8 +724,8 @@ if [ $use_superb_next == yes -a $use_restructure == yes ] ; then
 	exit 1
 fi
 
-if [ $use_mpi != yes -a x${qmp}${quda}${superbblas} != x ] ; then
-	echo "Incompatible options: --mpi=no and installing qmp, quda or superbblas"
+if [ $use_mpi != yes -a x${qmp}${quda}${anarchofs} != x ] ; then
+	echo "Incompatible options: --mpi=no and installing qmp, quda or anarchofs"
 	exit 1
 fi
 
