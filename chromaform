@@ -2444,8 +2444,8 @@ if [ x${adat}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		adat_extra=""
-		[ $use_superb == yes ] && adat_extra="--with-superbblas=${installdir}/${superbblas_install}"
-		[ $use_mpi == yes ] && adat_extra="--enable-mpi"
+		[ $use_superb == yes ] && adat_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+		[ $use_mpi == yes ] && adat_extra+=" --enable-mpi"
 		run ${sdir}/configure --prefix=${idir} $adat_extra
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
