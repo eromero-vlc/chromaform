@@ -740,9 +740,6 @@ fi
 
 # Detecting flags
 
-# Avoid injecting openmp flags when compiling quda
-[ x${use_openmp}x == xx -a $use_arch != cpu -a x${quda}x != xx ] && use_openmp="nop"
-
 if [ ${use_autoflags} == yes ]; then
 	info "No CPU architecture given; guessing ..."
 	if [ x${use_march}x == xx ]; then
@@ -866,9 +863,18 @@ if [ ${use_autoflags} == yes ]; then
 			export OPENMP_CXXFLAGS=-qopenmp
 			;;
 		*)
-			CXXFLAGS+=" -fopenmp"
-			CFLAGS+=" -fopenmp"
-			LDFLAGS+=" -fopenmp"
+			echo detecting craype
+			which "$CC" | grep craype 
+			# Cray compiler wrapper incorrectly add extra flags when adding -fopenmp
+			if which "$CC" | grep craype &>/dev/null ; then
+				CXXFLAGS+=" --craype-append-opt=-fopenmp"
+				CFLAGS+=" --craype-append-opt=-fopenmp"
+				LDFLAGS+=" --craype-append-opt=-fopenmp"
+			else
+				CXXFLAGS+=" -fopenmp"
+				CFLAGS+=" -fopenmp"
+				LDFLAGS+=" -fopenmp"
+			fi
 			;;
 		esac
 	fi
@@ -1523,13 +1529,14 @@ if [ x${llvm}x != xx ]; then
 		[ $use_arch == cuda ] && llvm_targets="NVPTX;X86"
 		[ $use_arch == hip ] && llvm_targets="AMDGPU;X86"
 		pushd $bdir
-		CFLAGS= CXXFLAGS= run cmake \
+		CFLAGS= CXXFLAGS= LIBS= LDFLAGS= run cmake \
 		      -DLLVM_ENABLE_TERMINFO="OFF" \
 		      -DCMAKE_BUILD_TYPE=Release \
 		      -DCMAKE_INSTALL_PREFIX=${idir} \
 		      -DLLVM_TARGETS_TO_BUILD="${llvm_targets}" \
 		      -DLLVM_ENABLE_ZLIB="OFF" \
 		      -DBUILD_SHARED_LIBS="OFF" \
+		      -DLLVM_BUILD_LLVM_DYLIB="ON" \
 		      -DLLVM_ENABLE_RTTI="OFF"  \
 		      -DLLVM_ENABLE_PROJECTS="llvm;lld" \
 		      -DLLVM_INCLUDE_BENCHMARKS=OFF \
@@ -2055,10 +2062,13 @@ if [ x${quda}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		CFLAGS_quda=${CFLAGS//-?openmp/}
-		CXXFLAGS_quda=${CXXFLAGS//-?openmp/}
+		CFLAGS_quda=${CFLAGS//--craype-append-opt=-?openmp/}
+		CFLAGS_quda=${CFLAGS_quda//-?openmp/}
+		CXXFLAGS_quda=${CXXFLAGS//--craype-append-opt=-?openmp/}
+		CXXFLAGS_quda=${CXXFLAGS_quda//-?openmp/}
 		CXXFLAGS_quda=${CXXFLAGS_quda//-std=c++??/}
-		LDFLAGS_quda=${LDFLAGS//-?openmp/}
+		LDFLAGS_quda=${LDFLAGS//--craype-append-opt=-?openmp/}
+		LDFLAGS_quda=${LDFLAGS_quda//-?openmp/}
 		CPM_SOURCE_CACHE=${srcdir} CFLAGS="${CFLAGS_quda}" CXXFLAGS="${CXXFLAGS_quda}" LDFLAGS="${LDFLAGS_quda}" run cmake  \
 			-DQUDA_DIRAC_CLOVER=ON \
 			-DQUDA_DIRAC_CLOVER_HASENBUSCH=OFF \
@@ -2094,6 +2104,7 @@ if [ x${quda}x != xx ]; then
 
 		# Avoid QUDA injecting HIP language into anything linked with it
 		[ $use_arch == hip ] && sed -i 's/;HIP//' ${idir}/lib/cmake/QUDA/QUDATargets-release.cmake
+		[ $use_arch == hip ] && sed -i 's/enable_language(HIP)//' ${idir}/lib/cmake/QUDA/find_target_hip_dependencies.cmake
 		popd
 	fi
 	if [ $use_arch == hip ]; then
@@ -2292,13 +2303,13 @@ if [ x${superbblas}x != xx ]; then
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
-		CXXFLAGS_sb="${CXXFLAGS} $sb_cxx_extra"
+		CXXFLAGS_sb="${CXXFLAGS//--craype-append-opt=/} $sb_cxx_extra"
 		[ $use_arch != cpu ] && CXXFLAGS_sb="${CXXFLAGS_sb//-std=c++??/} -std=c++14"
 		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
 	fi
 	# Add flags to compile and link with HIP runtime and to link with clang openmp
 	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C | tr '\n' ' '` -I`$HIPCONFIG -R`/include"
-	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64 -L`$HIPCONFIG -l`/../lib -lomp"
+	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64 -lomp"
 	# Add anarchofs support
 	[ x${anarchofs}x != xx ] && CXXFLAGS+=" -DSUPERBBLAS_USE_ANARCHOFS"
 fi
