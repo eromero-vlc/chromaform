@@ -2391,7 +2391,7 @@ if [ x${chroma}x != xx ]; then
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
 			[ ${use_next} == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
-			[ ${use_arch} == hip ] && chroma_extra+=" -DChroma_ENABLE_OPENMP=OFF -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DGPU_TARGETS=$AMDGPU_TARGETS"
+			[ ${use_arch} == hip ] && chroma_extra+=" -DChroma_ENABLE_OPENMP=OFF -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DGPU_TARGETS=$AMDGPU_TARGETS -DROCM_PATH=`$HIPCONFIG -R`"
 			[ ${use_arch} == cuda ]  && chroma_extra+=" -DChroma_ENABLE_CUDA=ON"
 
 			run cmake \
