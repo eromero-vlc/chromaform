@@ -195,14 +195,18 @@ source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.csh int
 ./chromaform --knl redstar CC=icc CXX=icpc FC=ifort
 
 # Frontier (MI250)
+module load cpe/24.03
+module load cce/17.0.1
 module load PrgEnv-amd
 module load openblas
-module load gmp
-module load amd/5.4.2
-module load gcc-mixed
-module unload craype-accel-amd-gfx90a
+module load amd/6.0.0
+module load rocm/6.0.0
+module load zstd
+module load craype-accel-amd-gfx90a # loads GTL
 module load cmake
 ./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
+# NOTE: don't install chroma and redstar on the same directory, chroma needs c++20 and redstar c++17
+./chromaform redstar --std=c++17 --superb --pdf --hip MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` --env=env_extra0.sh --install-dir=install-redstar
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake

@@ -13,7 +13,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
-           [--std=c++11|--std=c++14|--std=c++20]                                          \\
+           [--std=c++11|--std=c++14|--std=c++17|--std=c++20]                              \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
            [ncurses] [libfuse3] [anarchofs]                                               \\
@@ -116,7 +116,7 @@ Control the flags use for building the packages.
    Append flags in CFLAGS and CXXFLAGS to activate proper extensions in the compiler,
    and set the QphiX isa.
 
---std=c++11|c++14|c++20   
+--std=c++11|c++14|C++17|c++20   
    Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
    is set; otherwise, --std=c++14 is appended by default.
 
@@ -280,6 +280,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	-Onone) use_opt="nop";;
 	--std=c++11) use_std="c++11";;
 	--std=c++14) use_std="c++14";;
+	--std=c++17) use_std="c++17";;
 	--std=c++20) use_std="c++20";;
 	--std=c++23) use_std="c++23";;
 	--env=*) do_export_env="${arg#--env=}";;
@@ -1526,9 +1527,13 @@ if [ x${llvm}x != xx ]; then
 		run mkdir -p $bdir
 		# Decide target
 		llvm_targets="X86"
-		[ $use_arch == cuda ] && llvm_targets="NVPTX;X86"
-		[ $use_arch == hip ] && llvm_targets="AMDGPU;X86"
+		[ $use_arch == cuda ] && llvm_targets="NVPTX"
+		[ $use_arch == hip ] && llvm_targets="AMDGPU"
 		pushd $bdir
+		LLVM_CC=gcc
+		[ $use_arch == hip ] && LLVM_CC=amdclang
+		LLVM_CXX=g++
+		[ $use_arch == hip ] && LLVM_CXX=amdclang++
 		CFLAGS= CXXFLAGS= LIBS= LDFLAGS= run cmake \
 		      -DLLVM_ENABLE_TERMINFO="OFF" \
 		      -DCMAKE_BUILD_TYPE=Release \
@@ -1536,12 +1541,11 @@ if [ x${llvm}x != xx ]; then
 		      -DLLVM_TARGETS_TO_BUILD="${llvm_targets}" \
 		      -DLLVM_ENABLE_ZLIB="OFF" \
 		      -DBUILD_SHARED_LIBS="OFF" \
-		      -DLLVM_BUILD_LLVM_DYLIB="ON" \
 		      -DLLVM_ENABLE_RTTI="OFF"  \
 		      -DLLVM_ENABLE_PROJECTS="llvm;lld" \
 		      -DLLVM_INCLUDE_BENCHMARKS=OFF \
 		      -DLLVM_ENABLE_LIBEDIT=OFF \
-		      -DCMAKE_CXX_COMPILER="g++" -DCMAKE_C_COMPILER="gcc" \
+		      -DCMAKE_CXX_COMPILER="${LLVM_CXX}" -DCMAKE_C_COMPILER="${LLVM_CC}" \
 		      $sdir/llvm
 		run ${MYMAKE} -j $MAKE_JN
 		run ${MYMAKE} install
@@ -1703,43 +1707,6 @@ if [ x${tensor}x != xx ]; then
 		esac
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
-	fi
-fi
-
-if [ x${hadron}x != xx ]; then
-	hadron_install="hadron-${use_arch}"
-	sdir="${srcdir}/${hadron_src}"
-	bdir="${builddir}/${hadron_install}"
-	idir="${installdir}/${hadron_install}"
-	info "Doing ${hadron} hadron; source=$sdir build=$bdir install=$idir"
-	if [ $do_cleaning == yes ]; then
-		[ ${hadron} == clean ] && rm -rf $sdir $bdir $idir
-	elif [ ${hadron} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
-		run rm -rf $bdir $idir
-		run mkdir -p $bdir
-		pushd $bdir
-		hadron_extra=""
-		case $use_arch in
-		cpu)
-			[ $use_blas == mkl-system ] && hadron_extra+=" --enable-mkl"
-			[ $use_blas == openblas -o $use_blas == openblas-system ] && hadron_extra+=" --enable-openblas"
-			;;
-		cuda)
-			hadron_extra+=" --enable-cuda --with-cudasm=${SM#sm_}"
-			;;
-		hip)
-			hadron_extra+=" --enable-rocm --with-rocmtarget=$AMDGPU_TARGETS"
-			;;
-		esac
-		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
-		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
-		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"
-		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install} ${hadron_extra}
-		run ${MYMAKE} install -j $MAKE_JN
-		popd
-	else
-		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 	fi
 fi
 
@@ -1942,6 +1909,8 @@ if [ x${qdp}x != xx ]; then
 		run cp ${CUDADIR}/nvvm/libdevice/libdevice*bc ${tmp}/h/libdevice.bc
 		( cd $sdir && run bash ./pack_libdevice.sh ${tmp}/h )
 	fi
+	use_qdp_cmake="nop"
+	[ $use_qdpjit == yes -o x${quda}x != xx ] && use_qdp_cmake="yes"
 	qdp_extra=""
 	if [ $use_qdpjit == yes ]; then
 		case $use_arch in
@@ -1956,6 +1925,8 @@ if [ x${qdp}x != xx ]; then
 			5.0*|4.*) qdp_extra+=" -DQDP_ROCM_PRE=ON" ;;
 			5.5*) qdp_extra+=" -DQDP_ROCM553FIX=ON" ;;
         		esac
+			[ x${llvm} != x ] && qdp_extra+=" -DLLVM_DIR=${installdir}/${llvm_install}/lib/cmake/llvm"
+			[ x${llvm} != x ] && qdp_extra+=" -DLLD_DIR=${installdir}/${llvm_install}/lib/cmake/lld"
 			;;
 		esac
         	llvm_ver="`llvm-config --version`"
@@ -1967,8 +1938,6 @@ if [ x${qdp}x != xx ]; then
 		18*) qdp_extra+=" -DQDP_ENABLE_LLVM18=ON" ;;
         	esac
 	fi
-	use_qdp_cmake="nop"
-	[ $use_qdpjit == yes -o x${quda}x != xx ] && use_qdp_cmake="yes"
 
 	for qdp_nd in 3 4 ; do
 		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
@@ -2015,6 +1984,15 @@ if [ x${qdp}x != xx ]; then
 	[ ${use_qdp_cmake} == yes ] && qdp_install+="-cmake"
 	qdp3d_install="${qdp_src}-${qdp_prec}-nd3"
 	[ ${use_qdp_cmake} == yes ] && qdp3d_install+="-cmake"
+	if [ $use_qdpjit == yes ]; then
+		export LD_LIBRARY_PATH="${installdir}/${qdp_install}/lib:$LD_LIBRARY_PATH"
+		if [ x${do_export_env}x != xx ]; then
+			cat << EOF >> $do_export_env
+# For qdp-jit
+export LD_LIBRARY_PATH="${installdir}/${qdp_install}/lib:\$LD_LIBRARY_PATH"
+EOF
+		fi
+	fi
 fi
 
 if [ x${quda}x != xx ]; then
@@ -2404,6 +2382,8 @@ if [ x${chroma}x != xx ]; then
 			[ ${use_next} == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
 			[ ${use_arch} == hip ] && chroma_extra+=" -DChroma_ENABLE_OPENMP=OFF -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DGPU_TARGETS=$AMDGPU_TARGETS -DROCM_PATH=`$HIPCONFIG -R`"
 			[ ${use_arch} == cuda ]  && chroma_extra+=" -DChroma_ENABLE_CUDA=ON"
+			[ x${llvm} != x ] && chroma_extra+=" -DLLVM_DIR=${installdir}/${llvm_install}/lib/cmake/llvm"
+			[ x${llvm} != x ] && chroma_extra+=" -DLLD_DIR=${installdir}/${llvm_install}/lib/cmake/lld"
 
 			run cmake \
 				-DCMAKE_INSTALL_PREFIX=${idir} \
@@ -2460,6 +2440,44 @@ if [ x${adat}x != xx ]; then
 		run ${sdir}/configure --prefix=${idir} $adat_extra
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
+	fi
+fi
+
+if [ x${hadron}x != xx ]; then
+	hadron_install="hadron-${use_arch}"
+	sdir="${srcdir}/${hadron_src}"
+	bdir="${builddir}/${hadron_install}"
+	idir="${installdir}/${hadron_install}"
+	info "Doing ${hadron} hadron; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${hadron} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${hadron} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		hadron_extra=""
+		case $use_arch in
+		cpu)
+			[ $use_blas == mkl-system ] && hadron_extra+=" --enable-mkl"
+			[ $use_blas == openblas -o $use_blas == openblas-system ] && hadron_extra+=" --enable-openblas"
+			;;
+		cuda)
+			hadron_extra+=" --enable-cuda --with-cudasm=${SM#sm_}"
+			;;
+		hip)
+			hadron_extra+=" --enable-rocm --with-rocm=`hipconfig -R` --with-rocmtarget=$AMDGPU_TARGETS"
+			;;
+		esac
+		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
+		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
+		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"
+		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install} ${hadron_extra}
+		run ${MYMAKE} install
+		#run ${MYMAKE} install -j $MAKE_JN
+		popd
+	else
+		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 	fi
 fi
 
