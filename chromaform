@@ -2037,6 +2037,9 @@ if [ x${quda}x != xx ]; then
 		sed '/./{H;$!d} ; x ; s/file([^)]*)/# ups/' -i ${sdir}/cmake/CPM.cmake
 		ln -s -f $srcdir/cpm/cmake/CPM.cmake $srcdir/cpm/CPM_0.38.5.cmake
 
+		# Hack, remove cmake complain
+		sed 's@target_include_directories(quda PUBLIC ${ROCM_PATH}/hipfft/include)@# ups@' -i ${sdir}/lib/targets/hip/target_hip.cmake
+
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
