@@ -1162,7 +1162,7 @@ primme                 https://github.com/primme/primme                eloy/prim
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz
 superbblas             https://github.com/eromero-vlc/superbblas       master
 superbblas-sp          https://github.com/eromero-vlc/superbblas       devel
-quda                   https://github.com/lattice/quda                 4abd38676040a06072ed94d84c7c4dac90ee8558
+quda                   https://github.com/lattice/quda                 ed21580eabd7dd8bfebee40a65ab813af1453f95
 #quda                   https://github.com/lattice/quda                 develop
 mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
@@ -1174,8 +1174,8 @@ cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.ta
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz
 rocPRIM                https://github.com/ROCmSoftwarePlatform/rocPRIM/archive/refs/tags/rocm-5.4.3.tar.gz
-openblas               https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.27/OpenBLAS-0.3.27.tar.gz
-cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.38.5.tar.gz
+openblas               https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.28/OpenBLAS-0.3.28.tar.gz
+cpm                    https://github.com/cpm-cmake/CPM.cmake/archive/refs/tags/v0.40.2.tar.gz
 gmp                    https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
 libxml2                https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.2.tar.xz
 xsimd                  https://github.com/xtensor-stack/xsimd.git	13.0.0
@@ -2035,7 +2035,7 @@ if [ x${quda}x != xx ]; then
 
 		# Hack, avoid downloading files
 		sed '/./{H;$!d} ; x ; s/file([^)]*)/# ups/' -i ${sdir}/cmake/CPM.cmake
-		ln -s -f $srcdir/cpm/cmake/CPM.cmake $srcdir/cpm/CPM_0.38.5.cmake
+		ln -s -f $srcdir/cpm/cmake/CPM.cmake $srcdir/cpm/CPM_0.40.2.cmake
 
 		# Hack, remove cmake complain
 		sed 's@target_include_directories(quda PUBLIC ${ROCM_PATH}/hipfft/include)@# ups@' -i ${sdir}/lib/targets/hip/target_hip.cmake
