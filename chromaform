@@ -867,7 +867,7 @@ if [ ${use_autoflags} == yes ]; then
 			echo detecting craype
 			which "$CC" | grep craype 
 			# Cray compiler wrapper incorrectly add extra flags when adding -fopenmp
-			if which "$CC" | grep craype &>/dev/null ; then
+			if [ $use_arch == hip ] && which "$CC" | grep craype &>/dev/null ; then
 				CXXFLAGS+=" --craype-append-opt=-fopenmp"
 				CFLAGS+=" --craype-append-opt=-fopenmp"
 				LDFLAGS+=" --craype-append-opt=-fopenmp"
