@@ -2466,7 +2466,8 @@ if [ x${hadron}x != xx ]; then
 			[ $use_blas == openblas -o $use_blas == openblas-system ] && hadron_extra+=" --enable-openblas"
 			;;
 		cuda)
-			hadron_extra+=" --enable-cuda --with-cudasm=${SM#sm_}"
+			hadron_extra+=" --enable-cuda --with-cudasm=${SM#sm_} --with-cuda=${CUDADIR}"
+			[ x${CUDADIR_extra}x != xx ] && hadron_extra+=" --with-cublas=${CUDADIR_extra}"
 			;;
 		hip)
 			hadron_extra+=" --enable-rocm --with-rocm=`hipconfig -R` --with-rocmtarget=$AMDGPU_TARGETS"

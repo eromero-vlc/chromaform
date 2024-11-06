@@ -273,6 +273,7 @@ module load craype-accel-host
 # Perlmutter GPU
 module load cmake
 ./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80
+./chromaform --cuda --pdf redstar CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/23.9/math_libs/12.2/targets/x86_64-linux
 
 # Polaris
 module swap PrgEnv-nvhpc PrgEnv-gnu
