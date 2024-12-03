@@ -171,6 +171,7 @@ use_float="nop"
 use_arch="cpu"
 use_march=""
 use_pdf="nop"
+use_pdf_next="nop"
 use_next="nop"
 use_restructure="nop"
 use_superb="nop"
@@ -245,7 +246,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--zen2) use_march="zen2";;
 	--zen3) use_march="zen3";;
 	--mg) use_mg="yes";;
-	--next) use_next="yes";use_superb="yes";use_superb_next="yes";;
+	--next) use_next="yes";use_superb="yes";use_superb_next="yes"; use_pdf_next="yes";;
 	--pdf) use_pdf="yes";;
 	--clean) action="clean";do_cleaning="yes";;
 	--install) action="install";;
@@ -1013,10 +1014,12 @@ fi
 if [ x${adat}x != xx ]; then
 	adat_src="adat"
 	[ $use_pdf == yes ] && adat_src="adat-pdf"
+	[ $use_pdf_next == yes ] && adat_src="adat-pdf-next"
 fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
 	[ $use_pdf == yes ] && colorvec_src="colorvec-pdf"
+	[ $use_pdf_next == yes ] && colorvec_src="colorvec-pdf-next"
 fi
 if [ x${tensor}x != xx ]; then
 	tensor_src="tensor"
@@ -1030,6 +1033,7 @@ fi
 if [ x${redstar}x != xx ]; then
 	redstar_src="redstar"
 	[ $use_pdf == yes ] && redstar_src="redstar-pdf"
+	[ $use_pdf_next == yes ] && redstar_src="redstar-pdf-next"
 fi
 if [ x${laplace_eigs}x != xx ]; then
 	laplace_eigs_src="laplace_eigs"
@@ -1150,13 +1154,14 @@ harom                  https://github.com/JeffersonLab/harom           devel
 hadron                 https://github.com/JeffersonLab/hadron          devel
 tensor                 https://github.com/JeffersonLab/tensor          master
 redstar                https://github.com/JeffersonLab/redstar         devel
-redstar2               https://github.com/JeffersonLab/redstar         eloy/hadron-node-lib
 redstar-pdf            https://github.com/JeffersonLab/redstar         devel-pdf
+redstar-pdf-next       https://github.com/JeffersonLab/redstar         eloy/mix-phasings-with-momclass
 adat                   https://github.com/JeffersonLab/adat            devel
 adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
+adat-pdf-next          https://github.com/JeffersonLab/adat            eloy/mix-phasings-with-momclass
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
-colorvec2              https://github.com/JeffersonLab/colorvec        eloy/hadron-node-lib
+colorvec-pdf-next      https://github.com/JeffersonLab/colorvec        eloy/mix-phasings-with-momclass
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz

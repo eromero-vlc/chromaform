@@ -72,7 +72,8 @@ Some packages have special optional features.
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
    - chroma: new disconnected diagram task based on frequency splitting.
-   - colorvec/redstar: smearing elementals on the fly.
+   - adat/colorvec/redstar: phasing support and new keys for correlation functions,
+     branch `eloy/mix-phasings-with-momclass`.
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
