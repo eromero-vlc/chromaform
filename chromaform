@@ -67,6 +67,11 @@ Some packages have special optional features.
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
    - chroma: new disconnected diagram task based on frequency splitting.
+   - adat/colorvec/redstar: phasing support and new keys for correlation functions,
+     branch `eloy/mix-phasings-with-momclass`.
+--meta
+   Install the devel-meta version of hadron.
+
 
 * CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
@@ -172,6 +177,7 @@ use_arch="cpu"
 use_march=""
 use_pdf="nop"
 use_pdf_next="nop"
+use_meta="nop"
 use_next="nop"
 use_restructure="nop"
 use_superb="nop"
@@ -186,7 +192,7 @@ use_libxml2=""
 use_libfuse3=""
 use_tinfo=""
 use_cmake=""
-use_mpi="yes"
+use_mpi="duno"
 use_openmp=""
 use_autoflags="yes"
 use_opt="opt"
@@ -248,6 +254,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--mg) use_mg="yes";;
 	--next) use_next="yes";use_superb="yes";use_superb_next="yes"; use_pdf_next="yes";;
 	--pdf) use_pdf="yes";;
+	--meta) use_next="yes";use_superb="yes";use_superb_next="yes"; use_pdf_next="yes"; use_meta="yes";;
 	--clean) action="clean";do_cleaning="yes";;
 	--install) action="install";;
 	--update) action="update";;
@@ -363,10 +370,21 @@ check_success() {
 	[ $last_status -ne 0 ] && exit $last_status
 }
 
+# Set the default for use_mpi
+if [ ${use_mpi} == duno ] ; then
+	if [ x${openmpi} != x -o x${mvapich2} ] || [ x${adat} == x -a x${colorvec} == x -a x${redstar} == x ] ; then
+		use_mpi="yes"
+	else
+		use_mpi="nop"
+	fi
+fi
+
 # Set default compilers
 if [ x${openmpi}x == xx -a x${mvapich2}x == xx ]; then
-	CC="${CC:-mpicc}"
-	CXX="${CXX:-mpicxx}"
+	if [ $use_mpi == yes ] ; then
+		CC="${CC:-mpicc}"
+		CXX="${CXX:-mpicxx}"
+	fi
 else
 	if [ x${CXX} == xmpicxx -o x${CC} == xmpicc ]; then
 		echo "When compiling openmpi or mvapich2, please set \$CC and \$CXX to something else other than mpicc and mpicxx"
@@ -387,6 +405,8 @@ if [ x${use_std}x == xx ]; then
 	use_std="c++14"
 	# qdp-jit needs c++20
 	[ $use_arch != cpu -a $use_qdpjit == yes ] && use_std="c++20"
+	# adat, colorvec, redstar needs c++20
+	[  x${adat} != x -o x${colorvec} != x -o x${redstar} != x ] && use_std="c++20"
 fi
 
 detect_compiler() {
@@ -1020,12 +1040,14 @@ if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
 	[ $use_pdf == yes ] && colorvec_src="colorvec-pdf"
 	[ $use_pdf_next == yes ] && colorvec_src="colorvec-pdf-next"
+	[ $use_meta == yes ] && colorvec_src="colorvec-pdf-next-meta"
 fi
 if [ x${tensor}x != xx ]; then
 	tensor_src="tensor"
 fi
 if [ x${hadron}x != xx ]; then
 	hadron_src="hadron"
+	[ $use_meta == yes ] && hadron_src="hadron-meta"
 fi
 if [ x${harom}x != xx ]; then
 	harom_src="harom"
@@ -1034,6 +1056,7 @@ if [ x${redstar}x != xx ]; then
 	redstar_src="redstar"
 	[ $use_pdf == yes ] && redstar_src="redstar-pdf"
 	[ $use_pdf_next == yes ] && redstar_src="redstar-pdf-next"
+	[ $use_meta == yes ] && redstar_src="redstar-pdf-next-meta"
 fi
 if [ x${laplace_eigs}x != xx ]; then
 	laplace_eigs_src="laplace_eigs"
@@ -1152,16 +1175,19 @@ mgproto                https://github.com/JeffersonLab/mg_proto        devel
 mgproto2               https://github.com/twLQCD/mg_proto.git          reuse_prolong
 harom                  https://github.com/JeffersonLab/harom           devel
 hadron                 https://github.com/JeffersonLab/hadron          devel
+hadron-meta            https://github.com/JeffersonLab/hadron          devel-meta
 tensor                 https://github.com/JeffersonLab/tensor          master
 redstar                https://github.com/JeffersonLab/redstar         devel
 redstar-pdf            https://github.com/JeffersonLab/redstar         devel-pdf
 redstar-pdf-next       https://github.com/JeffersonLab/redstar         eloy/mix-phasings-with-momclass
+redstar-pdf-next-meta  https://github.com/JeffersonLab/redstar         eloy/mix-phasings-with-momclass-with-meta
 adat                   https://github.com/JeffersonLab/adat            devel
 adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
 adat-pdf-next          https://github.com/JeffersonLab/adat            eloy/mix-phasings-with-momclass
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec-pdf-next      https://github.com/JeffersonLab/colorvec        eloy/mix-phasings-with-momclass
+colorvec-pdf-next-meta https://github.com/JeffersonLab/colorvec        eloy/mix-phasings-with-momclass-with-meta
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz
@@ -2451,7 +2477,7 @@ if [ x${adat}x != xx ]; then
 fi
 
 if [ x${hadron}x != xx ]; then
-	hadron_install="hadron-${use_arch}"
+	hadron_install="${hadron_src}-${use_arch}"
 	sdir="${srcdir}/${hadron_src}"
 	bdir="${builddir}/${hadron_install}"
 	idir="${installdir}/${hadron_install}"

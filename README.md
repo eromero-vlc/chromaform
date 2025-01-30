@@ -11,7 +11,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
-           [--std=c++11|--std=c++14|--std=c++20]                                          \\
+           [--std=c++11|--std=c++14|--std=c++17|--std=c++20]                              \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
            [ncurses] [libfuse3] [anarchofs]                                               \\
@@ -74,6 +74,8 @@ Some packages have special optional features.
    - chroma: new disconnected diagram task based on frequency splitting.
    - adat/colorvec/redstar: phasing support and new keys for correlation functions,
      branch `eloy/mix-phasings-with-momclass`.
+* `--meta`:
+   Install the devel-meta version of hadron.
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
