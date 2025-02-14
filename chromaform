@@ -1035,6 +1035,7 @@ if [ x${adat}x != xx ]; then
 	adat_src="adat"
 	[ $use_pdf == yes ] && adat_src="adat-pdf"
 	[ $use_pdf_next == yes ] && adat_src="adat-pdf-next"
+	[ $use_meta == yes ] && adat_src="adat-pdf-next-meta"
 fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
@@ -1184,6 +1185,7 @@ redstar-pdf-next-meta  https://github.com/JeffersonLab/redstar         eloy/mix-
 adat                   https://github.com/JeffersonLab/adat            devel
 adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
 adat-pdf-next          https://github.com/JeffersonLab/adat            eloy/mix-phasings-with-momclass
+adat-pdf-next-meta     https://github.com/JeffersonLab/adat            eloy/mix-phasings-with-momclass-with-meta
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
 colorvec-pdf-next      https://github.com/JeffersonLab/colorvec        eloy/mix-phasings-with-momclass
