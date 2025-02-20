@@ -2435,26 +2435,6 @@ if [ x${chroma}x != xx ]; then
 	fi
 fi
 
-if [ x${harom}x != xx ]; then
-	harom_install="harom-${qdp3d_install}-${use_arch}"
-	sdir="${srcdir}/${harom_src}"
-	bdir="${builddir}/${harom_install}"
-	idir="${installdir}/${harom_install}"
-	info "Doing ${harom} harom; source=$sdir build=$bdir install=$idir"
-	if [ $do_cleaning == yes ]; then
-		[ ${harom} == clean ] && rm -rf $sdir $bdir $idir
-	elif [ ${harom} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
-		run rm -rf $bdir $idir
-		run mkdir -p $bdir
-		pushd $bdir
-		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-qdp=${installdir}/${qdp3d_install} \
-			--enable-experimental-baryon-blas-creation
-		run ${MYMAKE} install -j $MAKE_JN
-		popd
-	fi
-fi
-
 if [ x${adat}x != xx ]; then
 	adat_install="${adat_src}"
 	[ $use_superb == yes ] && adat_install="${adat_src}-${superbblas_src}"
@@ -2500,20 +2480,43 @@ if [ x${hadron}x != xx ]; then
 		cuda)
 			hadron_extra+=" --enable-cuda --with-cudasm=${SM#sm_} --with-cuda=${CUDADIR}"
 			[ x${CUDADIR_extra}x != xx ] && hadron_extra+=" --with-cublas=${CUDADIR_extra}"
+			[ $use_opt == debug ] && hadron_extra+=" NVCCFLAGS=-G"
+			[ $use_opt == opt ] && hadron_extra+=" NVCCFLAGS=-O3"
 			;;
 		hip)
 			hadron_extra+=" --enable-rocm --with-rocm=`hipconfig -R` --with-rocmtarget=$AMDGPU_TARGETS"
+			[ $use_opt == debug ] && hadron_extra+=" HIPCCFLAGS=-g"
+			[ $use_opt == opt ] && hadron_extra+=" HIPCCFLAGS=-O3"
 			;;
 		esac
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"
 		run ${sdir}/configure --prefix=${idir} --with-tensor=${installdir}/${tensor_install} ${hadron_extra}
-		run ${MYMAKE} install
-		#run ${MYMAKE} install -j $MAKE_JN
+		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	else
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
+	fi
+fi
+
+if [ x${harom}x != xx ]; then
+	harom_install="harom-${qdp3d_install}-${use_arch}"
+	sdir="${srcdir}/${harom_src}"
+	bdir="${builddir}/${harom_install}"
+	idir="${installdir}/${harom_install}"
+	info "Doing ${harom} harom; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${harom} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${harom} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		run ${sdir}/configure --prefix=${idir} --with-hadron=${installdir}/${hadron_install} --with-qdp=${installdir}/${qdp3d_install} \
+			--enable-experimental-baryon-blas-creation
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
 	fi
 fi
 
