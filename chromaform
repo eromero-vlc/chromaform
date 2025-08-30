@@ -2266,7 +2266,7 @@ if [ x${primme}x != xx ]; then
 		cpu)
 			run $MYMAKE -C ${bdir} lib install_static PREFIX=${idir} -j $MAKE_JN CC="$CXX" CFLAGS="$CXXFLAGS -fPIC" ;;
 		cuda)
-			run $MYMAKE -C ${bdir} lib install PREFIX=${idir} -j $MAKE_JN CFLAGS="$CFLAGS -fPIC" CUDADIR="$CUDADIR" ;;
+			run $MYMAKE -C ${bdir} lib install_static PREFIX=${idir} -j $MAKE_JN CC="$CXX" CFLAGS="$CXXFLAGS -fPIC" CUDADIR="$CUDADIR" ;;
 		hip)
 			run $MYMAKE -C ${bdir} lib install_static PREFIX=${idir} -j $MAKE_JN CC="$CXX" CFLAGS="$CXXFLAGS -fPIC" ROCMDIR="`$HIPCONFIG -R`" ;;
 		esac
