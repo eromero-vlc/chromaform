@@ -1201,7 +1201,7 @@ mugiq                  https://github.com/eromero-vlc/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2
 cmake                  https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3.tar.gz
-llvm                   https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/llvm-project-17.0.6.src.tar.xz
+llvm                   https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/llvm-project-18.1.8.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
 rocThrust              https://github.com/ROCmSoftwarePlatform/rocThrust/archive/refs/tags/rocm-5.4.3.tar.gz

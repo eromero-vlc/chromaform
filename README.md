@@ -198,13 +198,12 @@ source /dist/intel/parallel_studio_2019/parallel_studio_xe_2019/psxevars.csh int
 ./chromaform --knl redstar CC=icc CXX=icpc FC=ifort
 
 # Frontier (MI250)
-module load cpe/24.03
-module load cce/17.0.1
+module load cpe/24.11
+module load cce/18.0.1
 module load PrgEnv-amd
 module load openblas
-module load amd/6.0.0
-module load rocm/6.0.0
-module load zstd
+module load amd
+module load rocm
 module load craype-accel-amd-gfx90a # loads GTL
 module load cmake
 ./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
