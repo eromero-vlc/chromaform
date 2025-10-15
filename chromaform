@@ -1948,6 +1948,8 @@ if [ x${qdp}x != xx ]; then
 		case $use_arch in
 		cuda)
 			qdp_extra+=" -DQDP_ENABLE_BACKEND=CUDA -DQDP_ALIGNMENT_SIZE=128"
+			# Force qdpjit to properly handle contexts
+			CXXFLAGS+=" -DQDP_THRUSTALIGN"
 			;;
 		hip)
 			qdp_extra+=" -DQDP_ENABLE_BACKEND=ROCM -DGPU_TARGETS=${AMDGPU_TARGETS} -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DQDP_PROP_OPT=OFF -DROCM_PATH=`$HIPCONFIG -R`"
