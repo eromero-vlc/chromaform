@@ -2317,7 +2317,8 @@ if [ x${superbblas}x != xx ]; then
 			export HIPFLAGS="`$HIPCONFIG -C | tr '\n' ' '` -I`$HIPCONFIG -R`/hipblas/include -I`$HIPCONFIG -R`/hipsparse/include -I`$HIPCONFIG -R`/hipsolver/include $hip_arch_flags"
 		fi
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
-		[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
+		# Disable the XSIMD implementation for now, the nvidia compiler complains and it isn't used in production for now
+		#[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
 		CXXFLAGS_sb="${CXXFLAGS//--craype-append-opt=/} $sb_cxx_extra"
 		[ $use_arch != cpu ] && CXXFLAGS_sb="${CXXFLAGS_sb//-std=c++??/} -std=c++14"
 		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"

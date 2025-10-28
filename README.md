@@ -267,6 +267,19 @@ module load CUDA/11.0
 module load CMake/3.18.0
 ./chromaform --mg --cuda --superb chroma SM=sm_80 FC=gfortran
 
+# Daint.Alps (H100)
+uenv start --view=modules prgenv-gnu/24.11:v2
+module load cray-mpich
+module load cuda
+module load gcc
+module load openblas
+module load cmake
+# NOTE: quda gets confused with these env variables
+export -n MPICC
+export -n MPICXX
+export -n MPIFORT
+./chromaform --mg --cuda --superb chroma --env=env_extra.sh SM=sm_90 CC=mpicc CXX=mpicxx
+
 # Perlmutter CPU
 module load cmake
 module load craype-accel-host
