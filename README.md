@@ -287,8 +287,12 @@ module load craype-accel-host
 
 # Perlmutter GPU
 module load cmake
-./chromaform --mg --cuda --superb chroma CC=cc CXX=CC FC=ftn SM=sm_80
-./chromaform --cuda --pdf redstar CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/math_libs
+# NOTE: avoid compiling on the frontend on perlmutter, the frontends are zen3 but
+#       GPU computing nodes are zen2; adding the --zen2 may suffice thou.
+# NOTE: openblas may fail to compile with the cray compiler wrappers; if so, do this:
+./chromaform --zen2 openblas CC=gcc CXX=g++ FC=gfortran SM=sm_80
+./chromaform --zen2 --mg --cuda --superb chroma --env=env_extra.sh CC=cc CXX=CC FC=ftn SM=sm_80
+./chromaform --zen2 --cuda --pdf redstar CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/math_libs
 
 # Polaris
 module swap PrgEnv-nvhpc PrgEnv-gnu
