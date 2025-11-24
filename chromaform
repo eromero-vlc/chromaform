@@ -1193,7 +1193,7 @@ colorvec-pdf-next-meta https://github.com/JeffersonLab/colorvec        eloy/mix-
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz
-superbblas             https://github.com/eromero-vlc/superbblas       master
+superbblas             https://github.com/eromero-vlc/superbblas       devel
 superbblas-sp          https://github.com/eromero-vlc/superbblas       devel
 quda                   https://github.com/lattice/quda                 develop
 mugiq                  https://github.com/eromero-vlc/mugiq            master
