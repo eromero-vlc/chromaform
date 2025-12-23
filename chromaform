@@ -207,7 +207,28 @@ mymake() {
 }
 
 MYMAKE="${MAKE:-mymake}"
-[ x${MAKE_JN}x == xx ] && MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
+if [ x${MAKE_JN}x == xx ]; then
+	if [ -r /proc/cpuinfo ]; then
+		MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
+	elif command -v sysctl &> /dev/null ; then
+		MAKE_JN="$( sysctl -n hw.ncpu 2> /dev/null )"
+	elif command -v getconf &> /dev/null ; then
+		MAKE_JN="$( getconf _NPROCESSORS_ONLN 2> /dev/null )"
+	elif command -v python3 &> /dev/null ; then
+		MAKE_JN="$( python3 - << 'EOF'
+import multiprocessing
+print(multiprocessing.cpu_count() or 1)
+EOF
+)"
+	else
+		MAKE_JN=1
+	fi
+fi
+case "$MAKE_JN" in
+""|*[!0-9]*) MAKE_JN=1 ;;
+0) MAKE_JN=1 ;;
+esac
+export MAKE_JN
 if [ x${CUDADIR}x == xx ] ; then
 	CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
 	# If using NVHPC, point out the cuda directory
@@ -595,10 +616,10 @@ fi
 # Detect python3
 
 if [ x${PYTHON} == x ]; then
-	if python --version | grep -q "Python 3" &> /dev/null ; then
-		PYTHON="python"
-	elif python3 --version | grep -q "Python 3" &> /dev/null ; then
+	if command -v python3 &> /dev/null && python3 --version 2>&1 | grep -q "Python 3" ; then
 		PYTHON="python3"
+	elif command -v python &> /dev/null && python --version 2>&1 | grep -q "Python 3" ; then
+		PYTHON="python"
 	fi
 fi
 
@@ -793,113 +814,129 @@ if [ ${use_autoflags} == yes ]; then
 			fi
 		fi
 	fi
-	info "Detecting compiler...`detect_compiler`"
-	if [ ${use_march} == knl ]; then
-		# Active special tricks for a special architecture
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
-			CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
+		info "Detecting compiler...`detect_compiler`"
+		case "${use_march}" in
+		knl)
+			# Active special tricks for a special architecture
+			case "`detect_compiler`" in
+			icc)
+				CXXFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
+				CFLAGS+=" -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512"
+				;;
+			*)
+				CXXFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+				CFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+				;;
+			esac
 			;;
-		*)
-			CXXFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
-			CFLAGS+=" -march=knl -mavx512f -mavx512pf -mavx512er -mavx512cd"
+		avx512_fp16)
+			case "`detect_compiler`" in
+			icc)
+				CXXFLAGS+=" -xCORE-AVX512"
+				CFLAGS+=" -xCORE-AVX512"
+				;;
+			*)
+				CXXFLAGS+=" -march=sapphirerapids"
+				CFLAGS+=" -march=sapphirerapids"
+				;;
+			esac
 			;;
-		esac
-	elif [ ${use_march} == avx512_fp16 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX512"
-			CFLAGS+=" -xCORE-AVX512"
+		avx512)
+			case "`detect_compiler`" in
+			icc)
+				CXXFLAGS+=" -xCORE-AVX512"
+				CFLAGS+=" -xCORE-AVX512"
+				;;
+			*)
+				CXXFLAGS+=" -march=skylake-avx512"
+				CFLAGS+=" -march=skylake-avx512"
+				;;
+			esac
 			;;
-		*)
-			CXXFLAGS+=" -march=sapphirerapids"
-			CFLAGS+=" -march=sapphirerapids"
+		avx2)
+			case "`detect_compiler`" in
+			icc)
+				CXXFLAGS+=" -xCORE-AVX2"
+				CFLAGS+=" -xCORE-AVX2"
+				;;
+			*)
+				CXXFLAGS+=" -march=haswell -mavx2"
+				CFLAGS+=" -march=haswell -mavx2"
+				;;
+			esac
 			;;
-		esac
-	elif [ ${use_march} == avx512 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX512"
-			CFLAGS+=" -xCORE-AVX512"
+		avx)
+			case "`detect_compiler`" in
+			icc)
+				CXXFLAGS+=" -xCORE-AVX"
+				CFLAGS+=" -xCORE-AVX"
+				;;
+			*)
+				CXXFLAGS+=" -march=ivybridge -mavx"
+				CFLAGS+=" -march=ivybridge -mavx"
+				;;
+			esac
 			;;
-		*)
-			CXXFLAGS+=" -march=skylake-avx512"
-			CFLAGS+=" -march=skylake-avx512"
+		zen2)
+			case "`detect_compiler`" in
+			*)
+				CXXFLAGS+=" -march=znver2"
+				CFLAGS+=" -march=znver2"
+				;;
+			esac
 			;;
-		esac
-	elif [ ${use_march} == avx2 ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX2"
-			CFLAGS+=" -xCORE-AVX2"
+		zen3)
+			case "`detect_compiler`" in
+			*)
+				CXXFLAGS+=" -march=znver3"
+				CFLAGS+=" -march=znver3"
+				;;
+			esac
 			;;
-		*)
-			CXXFLAGS+=" -march=haswell -mavx2"
-			CFLAGS+=" -march=haswell -mavx2"
+		zen4)
+			case "`detect_compiler`" in
+			*)
+				CXXFLAGS+=" -march=znver4"
+				CFLAGS+=" -march=znver4"
+				;;
+			esac
 			;;
-		esac
-	elif [ ${use_march} == avx ]; then
-		case "`detect_compiler`" in
-		icc)
-			CXXFLAGS+=" -xCORE-AVX"
-			CFLAGS+=" -xCORE-AVX"
-			;;
-		*)
-			CXXFLAGS+=" -march=ivybridge -mavx"
-			CFLAGS+=" -march=ivybridge -mavx"
-			;;
-		esac
-	elif [ ${use_march} == zen2 ]; then
-		case "`detect_compiler`" in
-		*)
-			CXXFLAGS+=" -march=znver2"
-			CFLAGS+=" -march=znver2"
-			;;
-		esac
-	elif [ ${use_march} == zen3 ]; then
-		case "`detect_compiler`" in
-		*)
-			CXXFLAGS+=" -march=znver3"
-			CFLAGS+=" -march=znver3"
-			;;
-		esac
-	elif [ ${use_march} == zen4 ]; then
-		case "`detect_compiler`" in
-		*)
-			CXXFLAGS+=" -march=znver4"
-			CFLAGS+=" -march=znver4"
-			;;
-		esac
-	elif [ ${use_march} == power ]; then
-		info "Not setting specific architecture flags for POWER architecture"
-	fi
-	if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
-		# QDP is compiled with OpenMP, so we need to add the flag
-		case "`detect_compiler`" in
-		icc|icx)
-			CXXFLAGS+=" -qopenmp"
-			CFLAGS+=" -qopenmp"
-			LDFLAGS+=" -qopenmp"
-			export OPENMP_CFLAGS=-qopenmp
-			export OPENMP_CXXFLAGS=-qopenmp
-			;;
-		*)
-			echo detecting craype
-			which "$CC" | grep craype 
-			# Cray compiler wrapper incorrectly add extra flags when adding -fopenmp
-			if [ $use_arch == hip ] && which "$CC" | grep craype &>/dev/null ; then
-				CXXFLAGS+=" --craype-append-opt=-fopenmp"
-				CFLAGS+=" --craype-append-opt=-fopenmp"
-				LDFLAGS+=" --craype-append-opt=-fopenmp"
-			else
-				CXXFLAGS+=" -fopenmp"
-				CFLAGS+=" -fopenmp"
-				LDFLAGS+=" -fopenmp"
-			fi
+		power)
+			info "Not setting specific architecture flags for POWER architecture"
 			;;
 		esac
-	fi
+
+		if [ x${use_openmp}x == xx ] && [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
+			info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
+			use_openmp="nop"
+		fi
+
+		if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
+			# QDP is compiled with OpenMP, so we need to add the flag
+			case "`detect_compiler`" in
+			icc|icx)
+				CXXFLAGS+=" -qopenmp"
+				CFLAGS+=" -qopenmp"
+				LDFLAGS+=" -qopenmp"
+				export OPENMP_CFLAGS=-qopenmp
+				export OPENMP_CXXFLAGS=-qopenmp
+				;;
+			*)
+				echo detecting craype
+				which "$CC" | grep craype 
+				# Cray compiler wrapper incorrectly add extra flags when adding -fopenmp
+				if [ $use_arch == hip ] && which "$CC" | grep craype &>/dev/null ; then
+					CXXFLAGS+=" --craype-append-opt=-fopenmp"
+					CFLAGS+=" --craype-append-opt=-fopenmp"
+					LDFLAGS+=" --craype-append-opt=-fopenmp"
+				else
+					CXXFLAGS+=" -fopenmp"
+					CFLAGS+=" -fopenmp"
+					LDFLAGS+=" -fopenmp"
+				fi
+				;;
+			esac
+		fi
 	case ${use_opt} in
 	debug)
 		CFLAGS+=" -g3 -O0"
@@ -919,13 +956,19 @@ if [ ${use_autoflags} == yes ]; then
 	esac
 	# Old versions of icc need this
 	case "$CFLAGS" in
-	*-std=*) ;;
-	*) CFLAGS+=" -std=c11 -D_XOPEN_SOURCE=500" ;;
-	esac
-elif [ x${use_march}x = xx ] ; then
-	info "No architecture information given, just assuming AVX"
-	use_march="avx"
-fi
+		*-std=*) ;;
+		*) 
+			if [ "`uname -s`" == "Darwin" ]; then
+				CFLAGS+=" -std=c11 -D_DARWIN_C_SOURCE"
+			else
+				CFLAGS+=" -std=c11 -D_XOPEN_SOURCE=500"
+			fi
+			;;
+		esac
+	elif [ x${use_march}x = xx ] ; then
+		info "No architecture information given, just assuming AVX"
+		use_march="avx"
+	fi
 
 if [ ${use_arch} == hip ]; then
 	export AR="${AR:-llvm-ar}"
@@ -1628,6 +1671,9 @@ if [ x${openblas}x != xx ]; then
 	bdir="${builddir}/${openblas_install}"
 	idir="${installdir}/${openblas_install}"
 	info "Doing ${openblas} OpenBLAS; source=$sdir build=$bdir install=$idir"
+	[ "`uname -s`" == "Darwin" -a x${openblas_use_gcc}x == xx ] && openblas_use_gcc="yes"
+	openblas_use_openmp=1
+	[ x${use_openmp}x == xnopx ] && openblas_use_openmp=0
 	if [ $do_cleaning == yes ]; then
 		[ ${openblas} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${openblas} == install -o ! -d ${idir} ]; then
@@ -1639,9 +1685,9 @@ if [ x${openblas}x != xx ]; then
 			unset CFLAGS
 			unset CXXFLAGS
 			if [ x${openblas_use_gcc} == xyes ]; then
-				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=1 CC=gcc CXX=g++ FC=gfortran
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} CC=gcc CXX=g++ FC=gfortran libs netlib shared
 			else
-				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=1
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} libs netlib shared
 			fi
 			run ${MYMAKE} install PREFIX=${idir}
 		)
@@ -1660,7 +1706,15 @@ EOF
 	if [ `detect_fortran_compiler` == icx ]; then
 		echo -n
 	elif [ `detect_fortran_compiler` == gcc -o `detect_fortran_compiler` == nvc -o x${openblas_use_gcc} == xyes ]; then
-		LIBS+=" -lgfortran -lgomp"
+		LIBS+=" -lgfortran"
+		[ x${use_openmp}x != xnopx ] && LIBS+=" -lgomp"
+		if command -v gfortran &> /dev/null ; then
+			gfortran_libdir="$( dirname $( gfortran -print-file-name=libgfortran.dylib ) )"
+			LDFLAGS+=" -L${gfortran_libdir}"
+			LIBS+=" -L${gfortran_libdir}"
+			quadmath_lib="$( gfortran -print-file-name=libquadmath.dylib )"
+			[ -f "$quadmath_lib" ] && LIBS+=" -lquadmath"
+		fi
 	elif [ `detect_fortran_compiler` == icc ]; then
 		LIBS+=" -limf -lintlc"
 	else
@@ -1972,6 +2026,9 @@ if [ x${qdp}x != xx ]; then
 		18*) qdp_extra+=" -DQDP_ENABLE_LLVM18=ON" ;;
         	esac
 	fi
+	qdp_openmp_flag="--disable-openmp"
+	qdp_cmake_openmp="-DQDP_ENABLE_OPENMP=OFF"
+	[ x${use_openmp}x != xnopx ] && qdp_openmp_flag="--enable-openmp" && qdp_cmake_openmp="-DQDP_ENABLE_OPENMP=ON"
 
 	for qdp_nd in 3 4 ; do
 		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
@@ -1992,12 +2049,12 @@ if [ x${qdp}x != xx ]; then
         				--enable-Nd=$qdp_nd \
 				        --enable-parallel-arch=parscalar \
 					--enable-precision=${qdp_prec} \
-				        --enable-filedb \
+					--enable-filedb \
 					--disable-generics \
-				        --enable-parallel-io \
-				        --enable-alignment=64 \
+					--enable-parallel-io \
+					--enable-alignment=64 \
 					--with-qmp=${installdir}/${qmp_install} \
-				        --enable-openmp
+				        ${qdp_openmp_flag}
 			else
 				run cmake \
 					-DCMAKE_INSTALL_PREFIX=${idir} \
@@ -2005,6 +2062,7 @@ if [ x${qdp}x != xx ]; then
 					-DQDP_PARALLEL_ARCH=parscalar \
 					-DQDP_ND=$qdp_nd \
 					-DQDP_PRECISION=${qdp_prec} \
+					${qdp_cmake_openmp} \
 					-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
 					$qdp_extra \
 					${CMAKE_EXTRA_FLAGS} \
