@@ -206,6 +206,16 @@ mymake() {
 	make "$@" || make "$@" -j 1 || make "$@" -j 1 || make "$@" -j 1 
 }
 
+# Detect python3
+
+if [ x${PYTHON} == x ]; then
+	if python3 --version 2>&1 | grep -q "Python 3" ; then
+		PYTHON="python3"
+	elif python --version 2>&1 | grep -q "Python 3" ; then
+		PYTHON="python"
+	fi
+fi
+
 MYMAKE="${MAKE:-mymake}"
 if [ x${MAKE_JN}x == xx ]; then
 	if [ -r /proc/cpuinfo ]; then
@@ -214,8 +224,8 @@ if [ x${MAKE_JN}x == xx ]; then
 		MAKE_JN="$( sysctl -n hw.ncpu 2> /dev/null )"
 	elif command -v getconf &> /dev/null ; then
 		MAKE_JN="$( getconf _NPROCESSORS_ONLN 2> /dev/null )"
-	elif command -v python3 &> /dev/null ; then
-		MAKE_JN="$( python3 - << 'EOF'
+	elif command -v ${PYTHON} &> /dev/null ; then
+		MAKE_JN="$( ${PYTHON} - << 'EOF'
 import multiprocessing
 print(multiprocessing.cpu_count() or 1)
 EOF
@@ -613,16 +623,6 @@ if [ x${use_libfuse3}x == xx ]; then
 	esac
 fi
 
-# Detect python3
-
-if [ x${PYTHON} == x ]; then
-	if command -v python3 &> /dev/null && python3 --version 2>&1 | grep -q "Python 3" ; then
-		PYTHON="python3"
-	elif command -v python &> /dev/null && python --version 2>&1 | grep -q "Python 3" ; then
-		PYTHON="python"
-	fi
-fi
-
 # Detect if there is a cmake available in case the user does not give a clue
 
 if [ x${use_cmake}x == xx ]; then
@@ -814,8 +814,8 @@ if [ ${use_autoflags} == yes ]; then
 			fi
 		fi
 	fi
-		info "Detecting compiler...`detect_compiler`"
-		case "${use_march}" in
+	info "Detecting compiler...`detect_compiler`"
+	case "${use_march}" in
 		knl)
 			# Active special tricks for a special architecture
 			case "`detect_compiler`" in
@@ -904,39 +904,40 @@ if [ ${use_autoflags} == yes ]; then
 		power)
 			info "Not setting specific architecture flags for POWER architecture"
 			;;
+	esac
+
+	if [ x${use_openmp}x == xx ] && [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
+		info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
+		use_openmp="nop"
+	fi
+	[ x${use_openmp} == x ] && use_openmp="yes"
+
+	if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
+		# QDP is compiled with OpenMP, so we need to add the flag
+		case "`detect_compiler`" in
+		icc|icx)
+			CXXFLAGS+=" -qopenmp"
+			CFLAGS+=" -qopenmp"
+			LDFLAGS+=" -qopenmp"
+			export OPENMP_CFLAGS=-qopenmp
+			export OPENMP_CXXFLAGS=-qopenmp
+			;;
+		*)
+			echo detecting craype
+			which "$CC" | grep craype 
+			# Cray compiler wrapper incorrectly add extra flags when adding -fopenmp
+			if [ $use_arch == hip ] && which "$CC" | grep craype &>/dev/null ; then
+				CXXFLAGS+=" --craype-append-opt=-fopenmp"
+				CFLAGS+=" --craype-append-opt=-fopenmp"
+				LDFLAGS+=" --craype-append-opt=-fopenmp"
+			else
+				CXXFLAGS+=" -fopenmp"
+				CFLAGS+=" -fopenmp"
+				LDFLAGS+=" -fopenmp"
+			fi
+			;;
 		esac
-
-		if [ x${use_openmp}x == xx ] && [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
-			info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
-			use_openmp="nop"
-		fi
-
-		if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
-			# QDP is compiled with OpenMP, so we need to add the flag
-			case "`detect_compiler`" in
-			icc|icx)
-				CXXFLAGS+=" -qopenmp"
-				CFLAGS+=" -qopenmp"
-				LDFLAGS+=" -qopenmp"
-				export OPENMP_CFLAGS=-qopenmp
-				export OPENMP_CXXFLAGS=-qopenmp
-				;;
-			*)
-				echo detecting craype
-				which "$CC" | grep craype 
-				# Cray compiler wrapper incorrectly add extra flags when adding -fopenmp
-				if [ $use_arch == hip ] && which "$CC" | grep craype &>/dev/null ; then
-					CXXFLAGS+=" --craype-append-opt=-fopenmp"
-					CFLAGS+=" --craype-append-opt=-fopenmp"
-					LDFLAGS+=" --craype-append-opt=-fopenmp"
-				else
-					CXXFLAGS+=" -fopenmp"
-					CFLAGS+=" -fopenmp"
-					LDFLAGS+=" -fopenmp"
-				fi
-				;;
-			esac
-		fi
+	fi
 	case ${use_opt} in
 	debug)
 		CFLAGS+=" -g3 -O0"
@@ -964,11 +965,12 @@ if [ ${use_autoflags} == yes ]; then
 				CFLAGS+=" -std=c11 -D_XOPEN_SOURCE=500"
 			fi
 			;;
-		esac
-	elif [ x${use_march}x = xx ] ; then
-		info "No architecture information given, just assuming AVX"
-		use_march="avx"
-	fi
+	esac
+elif [ x${use_march}x = xx ] ; then
+	info "No architecture information given, just assuming AVX"
+	use_march="avx"
+	[ x${use_openmp} == x ] && use_openmp="yes"
+fi
 
 if [ ${use_arch} == hip ]; then
 	export AR="${AR:-llvm-ar}"
@@ -1681,13 +1683,14 @@ if [ x${openblas}x != xx ]; then
 		run cp -r $sdir $bdir
 		pushd $bdir
 		(
-			# Setting CFLAGS avoid Openblas to set proper flags
+			# NOTE: setting CFLAGS avoids Openblas to set proper flags
+			# NOTE: please do the tests, we have seen openblas giving wrong results for some compilers
 			unset CFLAGS
 			unset CXXFLAGS
 			if [ x${openblas_use_gcc} == xyes ]; then
-				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} CC=gcc CXX=g++ FC=gfortran libs netlib shared
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} CC=gcc CXX=g++ FC=gfortran
 			else
-				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} libs netlib shared
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp}
 			fi
 			run ${MYMAKE} install PREFIX=${idir}
 		)
@@ -1706,14 +1709,13 @@ EOF
 	if [ `detect_fortran_compiler` == icx ]; then
 		echo -n
 	elif [ `detect_fortran_compiler` == gcc -o `detect_fortran_compiler` == nvc -o x${openblas_use_gcc} == xyes ]; then
+		if [ "`uname -s`" == "Darwin" ] && command -v gfortran &> /dev/null ; then
+			LDFLAGS+=" -L$( dirname $( gfortran -print-file-name=libgfortran.dylib ) )"
+		fi
 		LIBS+=" -lgfortran"
-		[ x${use_openmp}x != xnopx ] && LIBS+=" -lgomp"
-		if command -v gfortran &> /dev/null ; then
-			gfortran_libdir="$( dirname $( gfortran -print-file-name=libgfortran.dylib ) )"
-			LDFLAGS+=" -L${gfortran_libdir}"
-			LIBS+=" -L${gfortran_libdir}"
-			quadmath_lib="$( gfortran -print-file-name=libquadmath.dylib )"
-			[ -f "$quadmath_lib" ] && LIBS+=" -lquadmath"
+		[ x${use_openmp} == xyes ] && LIBS+=" -lgomp"
+		if [ "`uname -s`" == "Darwin" ] && command -v gfortran &> /dev/null ; then
+			[ -f "$( gfortran -print-file-name=libquadmath.dylib )" ] && LIBS+=" -lquadmath"
 		fi
 	elif [ `detect_fortran_compiler` == icc ]; then
 		LIBS+=" -limf -lintlc"
@@ -2028,7 +2030,7 @@ if [ x${qdp}x != xx ]; then
 	fi
 	qdp_openmp_flag="--disable-openmp"
 	qdp_cmake_openmp="-DQDP_ENABLE_OPENMP=OFF"
-	[ x${use_openmp}x != xnopx ] && qdp_openmp_flag="--enable-openmp" && qdp_cmake_openmp="-DQDP_ENABLE_OPENMP=ON"
+	[ x${use_openmp} == xyes ] && qdp_openmp_flag="--enable-openmp" && qdp_cmake_openmp="-DQDP_ENABLE_OPENMP=ON"
 
 	for qdp_nd in 3 4 ; do
 		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
