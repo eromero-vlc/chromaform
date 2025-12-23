@@ -907,20 +907,42 @@ if [ ${use_autoflags} == yes ]; then
 	esac
 
 	if [ x${use_openmp}x == xx ] && [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
-		info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
-		use_openmp="nop"
+		apple_found_omp="nop"
+		if command -v pkg-config &> /dev/null && pkg-config --exists libomp; then
+			libomp_apple_cflags="`pkg-config --cflags libomp`"
+			libomp_apple_libs="`pkg-config --libs libomp`"
+			apple_found_omp="yes"
+		else
+			for prefix in /opt/homebrew/opt/libomp /usr/local/opt/libomp ; do
+				if [ -d "$prefix" ]; then
+					libomp_apple_cflags="-I${prefix}/include"
+					libomp_apple_libs="-L${prefix}/lib -lomp"
+					apple_found_omp="yes"
+					break
+				fi
+			done
+		fi
+		if [ $apple_found_omp == yes ] ; then
+			CXXFLAGS+=" -Xpreprocessor -fopenmp ${libomp_apple_cflags}"
+			CFLAGS+=" -Xpreprocessor -fopenmp ${libomp_apple_cflags}"
+			LDFLAGS+=" ${libomp_apple_libs}"
+			LIBS+=" ${libomp_apple_libs}"
+			info "Found libomp for Apple clang; enabling OpenMP"
+			use_openmp="yes"
+		else
+			info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
+			use_openmp="nop"
+		fi
 	fi
 	[ x${use_openmp} == x ] && use_openmp="yes"
 
-	if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
+	if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ ${use_openmp} == yes ]; then
 		# QDP is compiled with OpenMP, so we need to add the flag
 		case "`detect_compiler`" in
 		icc|icx)
 			CXXFLAGS+=" -qopenmp"
 			CFLAGS+=" -qopenmp"
 			LDFLAGS+=" -qopenmp"
-			export OPENMP_CFLAGS=-qopenmp
-			export OPENMP_CXXFLAGS=-qopenmp
 			;;
 		*)
 			echo detecting craype
