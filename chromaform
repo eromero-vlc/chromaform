@@ -906,9 +906,33 @@ if [ ${use_autoflags} == yes ]; then
 			;;
 		esac
 
-		if [ x${use_openmp}x == xx ] && [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
-			info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
-			use_openmp="nop"
+		is_apple_clang="nop"
+		libomp_cflags=""
+		libomp_ldflags=""
+		if [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
+			is_apple_clang="yes"
+			if command -v pkg-config &> /dev/null && pkg-config --exists libomp; then
+				libomp_cflags="`pkg-config --cflags libomp`"
+				libomp_ldflags="`pkg-config --libs libomp`"
+			else
+				for prefix in /opt/homebrew/opt/libomp /usr/local/opt/libomp ; do
+					if [ -d "$prefix" ]; then
+						libomp_cflags="-I${prefix}/include"
+						libomp_ldflags="-L${prefix}/lib -lomp"
+						break
+					fi
+				done
+			fi
+		fi
+
+		if [ x${use_openmp}x == xx ] && [ $is_apple_clang == yes ]; then
+			if [ -n "${libomp_ldflags}" ]; then
+				info "Found libomp for Apple clang; enabling OpenMP"
+				use_openmp="yes"
+			else
+				info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
+				use_openmp="nop"
+			fi
 		fi
 
 		if ! ( echo ${CXXFLAGS} | grep -q openmp ) && [ x${use_openmp}x != xnopx ]; then
@@ -920,6 +944,25 @@ if [ ${use_autoflags} == yes ]; then
 				LDFLAGS+=" -qopenmp"
 				export OPENMP_CFLAGS=-qopenmp
 				export OPENMP_CXXFLAGS=-qopenmp
+				;;
+			clang)
+				if [ $is_apple_clang == yes ]; then
+					if [ -z "${libomp_ldflags}" ]; then
+						echo "OpenMP requested but libomp was not found for Apple clang. Install libomp or pass --openmp=no."
+						exit 1
+					fi
+					CXXFLAGS+=" -Xpreprocessor -fopenmp ${libomp_cflags}"
+					CFLAGS+=" -Xpreprocessor -fopenmp ${libomp_cflags}"
+					LDFLAGS+=" ${libomp_ldflags}"
+					LIBS+=" ${libomp_ldflags}"
+					export OPENMP_CFLAGS="-Xpreprocessor -fopenmp ${libomp_cflags}"
+					export OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp ${libomp_cflags}"
+					export OPENMP_LDFLAGS="${libomp_ldflags}"
+				else
+					CXXFLAGS+=" -fopenmp"
+					CFLAGS+=" -fopenmp"
+					LDFLAGS+=" -fopenmp"
+				fi
 				;;
 			*)
 				echo detecting craype
