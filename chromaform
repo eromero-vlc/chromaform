@@ -18,7 +18,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
            [ncurses] [libfuse3] [anarchofs]                                               \\
            [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
-           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                   \\
+           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
 
@@ -348,6 +348,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	hadron) hadron="$action";;
 	harom) harom="$action";;
 	redstar) redstar="$action";;
+	redstardl) redstardl="$action";;
 	libxml2) libxml2="$action";use_libxml2="libxml2";;
 	libfuse3) libfuse3="$action";use_libfuse3="libfuse3";;
 	anarchofs) anarchofs="$action";;
@@ -428,16 +429,6 @@ fi
 if [ x$use_qdpjit == x ] ; then
 	use_qdpjit=nop
 	[ $use_arch != cpu ] && use_qdpjit=yes
-fi
-
-# Add extra flags
-
-if [ x${use_std}x == xx ]; then
-	use_std="c++14"
-	# qdp-jit needs c++20
-	[ $use_arch != cpu -a $use_qdpjit == yes ] && use_std="c++20"
-	# adat, colorvec, redstar needs c++20
-	[  x${adat} != x -o x${colorvec} != x -o x${redstar} != x ] && use_std="c++20"
 fi
 
 detect_compiler() {
@@ -717,6 +708,7 @@ fi
 [ x${quda}x != xx ] && cpm="${cpm:-update}"
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ x${chroma}x != xx -a $use_superb == yes ] && superbblas="${superbblas:-update}"
+[ x${chroma}x != xx -a $use_superb == yes ] && redstardl="${redstardl:-update}"
 [ x${chroma}x != xx -a $use_next == yes ] && boost="${boost:-update}"
 [ x${chroma}x != xx -a x${superbblas}x != xx ] && primme="${primme:-update}"
 [ x${mgproto}x != xx ] && primme="${primme:-update}"
@@ -727,9 +719,9 @@ fi
 [ x${laplace_eigs}x != xx ] && primme="${primme:-update}"
 [ x${redstar}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}" && colorvec="${colorvec:-update}"
 [ x${colorvec}x != xx ] && hadron="${hadron:-update}" && adat="${adat:-update}"
-[ x${adat}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
+[ x${adat}${redstardl}x != xx -a ${use_gmp} == gmp ] && gmp="${gmp:-update}"
 [ x${gcc}x != xx ] && gmp="${gmp:-update}"
-[ x${adat}x != xx -a ${use_superb} == yes ] && superbblas="${superbblas:-update}"
+[ x${adat}${redstardl}x != xx -a ${use_superb} == yes ] && superbblas="${superbblas:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
@@ -756,7 +748,7 @@ if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	exit 1
 fi
 [ x${qdp}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
-[ x${adat}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
+[ x${adat}${redstardl}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
 if [ $use_libxml2 != libxml2 -a x${libxml2}x != xx ]; then
 	echo "Incompatible options: --libxml2=system but also asking for compiling libxml2"
 	exit 1
@@ -780,6 +772,16 @@ fi
 [ x${gcc}x != xx -a x${isl}x == xx ] && isl="${isl:-update}"
 [ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
 [ x${openmpi}x != xx -a x${ucx}x == xx ] && ucx="${ucx:-update}"
+
+# Set C++ standard
+
+if [ x${use_std}x == xx ]; then
+	use_std="c++14"
+	# qdp-jit needs c++20
+	[ $use_arch != cpu -a $use_qdpjit == yes ] && use_std="c++20"
+	# redstar-datalib, adat, colorvec, redstar needs c++20
+	[  x${adat} != x -o x${colorvec} != x -o x${redstar} != x -o x${redstardl} != x ] && use_std="c++20"
+fi
 
 # Detecting flags
 
@@ -1104,6 +1106,9 @@ if [ x${adat}x != xx ]; then
 	[ $use_pdf_next == yes ] && adat_src="adat-pdf-next"
 	[ $use_meta == yes ] && adat_src="adat-pdf-next-meta"
 fi
+if [ x${redstardl}x != xx ]; then
+	redstardl_src="redstardl"
+fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
 	[ $use_pdf == yes ] && colorvec_src="colorvec-pdf"
@@ -1202,6 +1207,7 @@ $quda         $quda_src
 $cpm          $cpm_src
 $chroma       $chroma_src
 $laplace_eigs $laplace_eigs_src
+$redstardl    $redstardl_src
 $adat         $adat_src
 $colorvec     $colorvec_src
 $tensor       $tensor_src
@@ -1249,6 +1255,7 @@ redstar                https://github.com/JeffersonLab/redstar         devel
 redstar-pdf            https://github.com/JeffersonLab/redstar         devel-pdf
 redstar-pdf-next       https://github.com/JeffersonLab/redstar         eloy/mix-phasings-with-momclass
 redstar-pdf-next-meta  https://github.com/JeffersonLab/redstar         eloy/mix-phasings-with-momclass-with-meta
+redstardl              https://github.com/JeffersonLab/adat            eloy/redstar-datalib
 adat                   https://github.com/JeffersonLab/adat            devel
 adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
 adat-pdf-next          https://github.com/JeffersonLab/adat            eloy/mix-phasings-with-momclass
@@ -2447,6 +2454,32 @@ if [ x${mgproto}x != xx ]; then
 	fi
 fi
 
+if [ x${redstardl}x != xx ]; then
+	redstardl_install="${redstardl_src}"
+	[ $use_superb == yes ] && redstardl_install="${redstardl_src}-${superbblas_install}"
+	sdir="${srcdir}/${redstardl_src}"
+	bdir="${builddir}/${redstardl_install}"
+	idir="${installdir}/${redstardl_install}"
+	info "Doing ${redstardl} redstardl; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${redstardl} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${redstardl} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run autoreconf -f )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		pushd $bdir
+		redstardl_extra=""
+		[ $use_superb == yes ] && redstardl_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+		[ $use_superb == yes -a $use_arch != cpu ] && redstardl_extra+=" --with-gpu"
+		[ $use_superb == yes -a $use_arch == cuda ] && LIBS+=" -lcusolver -lcusparse -lcublas -lcudart"
+		[ $use_superb == yes -a $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64"
+		[ $use_mpi == yes ] && redstardl_extra+=" --enable-mpi"
+		run ${sdir}/configure --prefix=${idir} $redstardl_extra
+		run ${MYMAKE} install -j $MAKE_JN
+		popd
+	fi
+fi
+
 if [ x${chroma}x != xx ]; then
 	if [ $use_mg == nop ]; then
 		chroma_install="${chroma_src}-${qdp_install}"
@@ -2455,7 +2488,8 @@ if [ x${chroma}x != xx ]; then
 	else
 		chroma_install="${chroma_src}-${quda_install}"
 	fi
-	[ x${superbblas}x != xx ] && chroma_install+="-${superbblas_install}"
+	[ x${redstardl}x != xx ] && chroma_install+="-${redstardl_install}"
+	[ x${redstardl}x == xx -a x${superbblas}x != xx ] && chroma_install+="-${superbblas_install}"
 	sdir="${srcdir}/${chroma_src}"
 	bdir="${builddir}/${chroma_install}"
 	idir="${installdir}/${chroma_install}"
@@ -2481,6 +2515,7 @@ if [ x${chroma}x != xx ]; then
 			[ ${use_arch} == cuda ] && chroma_extra+=" --with-cuda=${CUDADIR}"
 			[ x${primme}x != xx ] && chroma_extra+=" --with-primme=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+			[ x${redstardl}x != xx ] && chroma_extra+=" --with-redstar-datalib=${installdir}/${redstardl_install}"
 			[ $use_next == yes -a x${boost}x != xx ] && chroma_extra+=" --with-boost=${srcdir}/${boost_install}"
 			run ${sdir}/configure \
 				--prefix=${idir} \
@@ -2499,6 +2534,7 @@ if [ x${chroma}x != xx ]; then
 			[ x${magma}x != xx ] && chroma_extra+=" -DChroma_ENABLE_MAGMA=ON -DMAGMA_DIR=${installdir}/${magma_install}"
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
+			[ x${redstardl}x != xx ] && chroma_extra+=" -DChroma_ENABLE_REDSTAR_DATALIB=ON -DREDSTAR_DATALIB_DIR=${installdir}/${redstardl_install}"
 			[ ${use_next} == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
 			[ ${use_arch} == hip ] && chroma_extra+=" -DChroma_ENABLE_OPENMP=OFF -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DGPU_TARGETS=$AMDGPU_TARGETS -DROCM_PATH=`$HIPCONFIG -R`"
 			[ ${use_arch} == cuda ]  && chroma_extra+=" -DChroma_ENABLE_CUDA=ON"
