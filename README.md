@@ -243,11 +243,15 @@ module load craype-accel-amd-gfx90a
 # NOTE: avoid using cray wrappers, they get confused with -fopenmp flags
 ./chromaform --hip --mpi=no redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=amdclang CXX=amdclang++ FC=amdflang --env=env_extra.sh
 
-# Default environment at TACC Frontera
-./chromaform --avx512 --mg --superb chroma
-
-# Default environment at TACC Stampede2 (executables work for skylake & KNL)
-./chromaform --knl --mg --superb chroma
+# TACC Frontera (avx512)
+# NOTE: fronetend nodes cannot handle chroma or redstar's compilation; download the source code first
+#       and compile on a computing node
+module load gcc/13.2.0
+module load cmake/3.31.5
+./chromaform --mg --superb --download-only chroma # download the source code
+./chromaform --mg --superb chroma MAKE_JN=10 # run this on a computing node
+./chromaform --meta --download-only redstar # download the source code
+./chromaform --meta redstar MAKE_JN=10 # run this on a computing node
 
 # At Jean-Zay
 module purge
