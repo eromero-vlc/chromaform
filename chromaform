@@ -2540,6 +2540,7 @@ if [ x${hadron}x != xx ]; then
 			[ $use_opt == opt ] && hadron_extra+=" HIPCCFLAGS=-O3"
 			;;
 		esac
+		sed 's/hadron_cxxld="@CXXLD@"/hadron_cxxld="@CXX@"/' -i ${sdir}/hadron-config.in
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"
