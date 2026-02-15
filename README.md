@@ -5,7 +5,7 @@ Automatic installation of JLab's chroma and redstar packages.
 
 ```bash
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                       \\
-           [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
+           [--float] [--cuda|--hip] [--mg] [--next] [--superb]                            \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
@@ -74,8 +74,6 @@ Some packages have special optional features.
    - chroma: new disconnected diagram task based on frequency splitting.
    - adat/colorvec/redstar: phasing support and new keys for correlation functions,
      branch `eloy/mix-phasings-with-momclass`.
-* `--meta`:
-   Install the devel-meta version of hadron.
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
@@ -208,7 +206,7 @@ module load craype-accel-amd-gfx90a # loads GTL
 module load cmake
 ./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
 # NOTE: don't install chroma and redstar on the same directory, chroma needs c++20 and redstar c++17
-./chromaform redstar --std=c++17 --superb --pdf --hip MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` --env=env_extra0.sh --install-dir=install-redstar
+./chromaform redstar --std=c++17 --superb --hip MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` --env=env_extra0.sh --install-dir=install-redstar
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake
@@ -243,11 +241,15 @@ module load craype-accel-amd-gfx90a
 # NOTE: avoid using cray wrappers, they get confused with -fopenmp flags
 ./chromaform --hip --mpi=no redstar MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=amdclang CXX=amdclang++ FC=amdflang --env=env_extra.sh
 
-# Default environment at TACC Frontera
-./chromaform --avx512 --mg --superb chroma
-
-# Default environment at TACC Stampede2 (executables work for skylake & KNL)
-./chromaform --knl --mg --superb chroma
+# TACC Frontera (avx512)
+# NOTE: fronetend nodes cannot handle chroma or redstar's compilation; download the source code first
+#       and compile on a computing node
+module load gcc/13.2.0
+module load cmake/3.31.5
+./chromaform --mg --superb --download-only chroma # download the source code
+./chromaform --mg --superb chroma MAKE_JN=10 # run this on a computing node
+./chromaform --download-only redstar # download the source code
+./chromaform redstar MAKE_JN=10 # run this on a computing node
 
 # At Jean-Zay
 module purge
@@ -292,7 +294,7 @@ module load cmake
 # NOTE: openblas may fail to compile with the cray compiler wrappers; if so, do this:
 ./chromaform --zen2 openblas CC=gcc CXX=g++ FC=gfortran SM=sm_80
 ./chromaform --zen2 --mg --cuda --superb chroma --env=env_extra.sh CC=cc CXX=CC FC=ftn SM=sm_80
-./chromaform --zen2 --cuda --pdf redstar CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/math_libs
+./chromaform --zen2 --cuda redstar CC=cc CXX=CC FC=ftn SM=sm_80 CUDADIR_extra=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/math_libs
 
 # Polaris
 module swap PrgEnv-nvhpc PrgEnv-gnu

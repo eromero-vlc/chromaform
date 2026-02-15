@@ -67,10 +67,6 @@ Some packages have special optional features.
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
    - chroma: new disconnected diagram task based on frequency splitting.
-   - adat/colorvec/redstar: phasing support and new keys for correlation functions,
-     branch `eloy/mix-phasings-with-momclass`.
---meta
-   Install the devel-meta version of hadron.
 
 
 * CMake, LLVM, BLAS, GMP, LIBXML2:
@@ -175,9 +171,6 @@ do_cleaning="nop"
 use_float="nop"
 use_arch="cpu"
 use_march=""
-use_pdf="nop"
-use_pdf_next="nop"
-use_meta="nop"
 use_next="nop"
 use_restructure="nop"
 use_superb="nop"
@@ -283,9 +276,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--zen2) use_march="zen2";;
 	--zen3) use_march="zen3";;
 	--mg) use_mg="yes";;
-	--next) use_next="yes";use_superb="yes";use_superb_next="yes"; use_pdf_next="yes";;
-	--pdf) use_pdf="yes";;
-	--meta) use_next="yes";use_superb="yes";use_superb_next="yes"; use_pdf_next="yes"; use_meta="yes";;
+	--next) use_superb="yes";use_superb_next="yes";;
 	--clean) action="clean";do_cleaning="yes";;
 	--install) action="install";;
 	--update) action="update";;
@@ -317,9 +308,6 @@ for (( i=1 ; i<=n ; ++i )); do
 	-g) use_opt="debug";;
 	-O) use_opt="opt";;
 	-Onone) use_opt="nop";;
-	--std=c++11) use_std="c++11";;
-	--std=c++14) use_std="c++14";;
-	--std=c++17) use_std="c++17";;
 	--std=c++20) use_std="c++20";;
 	--std=c++23) use_std="c++23";;
 	--env=*) do_export_env="${arg#--env=}";;
@@ -354,7 +342,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	anarchofs) anarchofs="$action";;
 	hdf5) hdf5="$action";;
 	gsl) gsl="$action";;
-	analysis) analysis="$action"; use_pdf="yes";;
+	analysis) analysis="$action";;
 	gcc) gcc="$action";;
 	openmpi) openmpi="$action";;
 	mvapich2) mvapich2="$action";;
@@ -429,6 +417,12 @@ fi
 if [ x$use_qdpjit == x ] ; then
 	use_qdpjit=nop
 	[ $use_arch != cpu ] && use_qdpjit=yes
+fi
+
+# Add extra flags
+
+if [ x${use_std}x == xx ]; then
+	use_std="c++20"
 fi
 
 detect_compiler() {
@@ -773,16 +767,6 @@ fi
 [ x${gcc}x != xx -a x${mpc}x == xx ] && mpc="${mpc:-update}"
 [ x${openmpi}x != xx -a x${ucx}x == xx ] && ucx="${ucx:-update}"
 
-# Set C++ standard
-
-if [ x${use_std}x == xx ]; then
-	use_std="c++14"
-	# qdp-jit needs c++20
-	[ $use_arch != cpu -a $use_qdpjit == yes ] && use_std="c++20"
-	# redstar-datalib, adat, colorvec, redstar needs c++20
-	[  x${adat} != x -o x${colorvec} != x -o x${redstar} != x -o x${redstardl} != x ] && use_std="c++20"
-fi
-
 # Detecting flags
 
 if [ ${use_autoflags} == yes ]; then
@@ -1102,34 +1086,24 @@ if [ x${superbblas}x != xx ]; then
 fi
 if [ x${adat}x != xx ]; then
 	adat_src="adat"
-	[ $use_pdf == yes ] && adat_src="adat-pdf"
-	[ $use_pdf_next == yes ] && adat_src="adat-pdf-next"
-	[ $use_meta == yes ] && adat_src="adat-pdf-next-meta"
 fi
 if [ x${redstardl}x != xx ]; then
 	redstardl_src="redstardl"
 fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
-	[ $use_pdf == yes ] && colorvec_src="colorvec-pdf"
-	[ $use_pdf_next == yes ] && colorvec_src="colorvec-pdf-next"
-	[ $use_meta == yes ] && colorvec_src="colorvec-pdf-next-meta"
 fi
 if [ x${tensor}x != xx ]; then
 	tensor_src="tensor"
 fi
 if [ x${hadron}x != xx ]; then
 	hadron_src="hadron"
-	[ $use_meta == yes ] && hadron_src="hadron-meta"
 fi
 if [ x${harom}x != xx ]; then
 	harom_src="harom"
 fi
 if [ x${redstar}x != xx ]; then
 	redstar_src="redstar"
-	[ $use_pdf == yes ] && redstar_src="redstar-pdf"
-	[ $use_pdf_next == yes ] && redstar_src="redstar-pdf-next"
-	[ $use_meta == yes ] && redstar_src="redstar-pdf-next-meta"
 fi
 if [ x${laplace_eigs}x != xx ]; then
 	laplace_eigs_src="laplace_eigs"
@@ -1252,18 +1226,9 @@ hadron                 https://github.com/JeffersonLab/hadron          devel
 hadron-meta            https://github.com/JeffersonLab/hadron          devel-meta
 tensor                 https://github.com/JeffersonLab/tensor          master
 redstar                https://github.com/JeffersonLab/redstar         devel
-redstar-pdf            https://github.com/JeffersonLab/redstar         devel-pdf
-redstar-pdf-next       https://github.com/JeffersonLab/redstar         eloy/mix-phasings-with-momclass
-redstar-pdf-next-meta  https://github.com/JeffersonLab/redstar         eloy/mix-phasings-with-momclass-with-meta
 redstardl              https://github.com/JeffersonLab/adat            eloy/redstar-datalib
 adat                   https://github.com/JeffersonLab/adat            devel
-adat-pdf               https://github.com/JeffersonLab/adat            devel-pdf
-adat-pdf-next          https://github.com/JeffersonLab/adat            eloy/mix-phasings-with-momclass
-adat-pdf-next-meta     https://github.com/JeffersonLab/adat            eloy/mix-phasings-with-momclass-with-meta
 colorvec               https://github.com/JeffersonLab/colorvec        devel
-colorvec-pdf           https://github.com/JeffersonLab/colorvec        devel-pdf
-colorvec-pdf-next      https://github.com/JeffersonLab/colorvec        eloy/mix-phasings-with-momclass
-colorvec-pdf-next-meta https://github.com/JeffersonLab/colorvec        eloy/mix-phasings-with-momclass-with-meta
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz
@@ -2611,6 +2576,7 @@ if [ x${hadron}x != xx ]; then
 			[ $use_opt == opt ] && hadron_extra+=" HIPCCFLAGS=-O3"
 			;;
 		esac
+		sed 's/hadron_cxxld="@CXXLD@"/hadron_cxxld="@CXX@"/' -i ${sdir}/hadron-config.in
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"
