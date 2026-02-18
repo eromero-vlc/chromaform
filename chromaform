@@ -7,7 +7,7 @@ read -r -d '' hlp_msg << 'EOF'
 Script for installing chroma and redstar and related software.
 
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                       \\
-           [--float] [--cuda|--hip] [--mg] [--pdf] [--next] [--superb]                    \\
+           [--float] [--cuda|--hip] [--mg] [--master] [--next] [--superb]                 \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
@@ -60,9 +60,9 @@ Some packages have special optional features.
    Install multigrid extension of chroma; it isn't installed by default.
 --superb
    Install the superbblas extensions of chroma; it isn't installed by default.
---pdf
-   Install the devel-pdf branches of adat, colorvec and redstar; the devel branch is
-   installed by default.
+--master
+   Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
+   branch is installed by default otherwise.
 --next
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
@@ -117,9 +117,8 @@ Control the flags use for building the packages.
    Append flags in CFLAGS and CXXFLAGS to activate proper extensions in the compiler,
    and set the QphiX isa.
 
---std=c++11|c++14|C++17|c++20   
-   Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
-   is set; otherwise, --std=c++14 is appended by default.
+--std=c++20|c++23   
+   Append the given flag to CXXFLAGS; --std=c++20 the default.
 
 --autoflags=no
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
@@ -171,6 +170,7 @@ do_cleaning="nop"
 use_float="nop"
 use_arch="cpu"
 use_march=""
+use_master="nop"
 use_next="nop"
 use_restructure="nop"
 use_superb="nop"
@@ -267,6 +267,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--qdpjit=no) use_qdpjit="nop";;
 	--qdpjit=yes) use_qdpjit="yes";;
 	--restructure) use_restructure="yes";;
+	--master) use_master="yes";;
 	--superb) use_superb="yes";use_superb_next="nop";;
 	--superb-next) use_superb="yes";use_superb_next="yes";;
 	--avx) use_march="avx";;
@@ -1084,21 +1085,25 @@ if [ x${superbblas}x != xx ]; then
 fi
 if [ x${adat}x != xx ]; then
 	adat_src="adat"
+	[ $use_master == yes ] && adat_src="adat-master"
 fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
+	[ $use_master == yes ] && colorvec_src="colorvec-master"
 fi
 if [ x${tensor}x != xx ]; then
 	tensor_src="tensor"
 fi
 if [ x${hadron}x != xx ]; then
 	hadron_src="hadron"
+	[ $use_master == yes ] && hadron_src="hadron-master"
 fi
 if [ x${harom}x != xx ]; then
 	harom_src="harom"
 fi
 if [ x${redstar}x != xx ]; then
 	redstar_src="redstar"
+	[ $use_master == yes ] && redstar_src="redstar-master"
 fi
 if [ x${laplace_eigs}x != xx ]; then
 	laplace_eigs_src="laplace_eigs"
@@ -1217,11 +1222,14 @@ mgproto                https://github.com/JeffersonLab/mg_proto        devel
 mgproto2               https://github.com/twLQCD/mg_proto.git          reuse_prolong
 harom                  https://github.com/JeffersonLab/harom           devel
 hadron                 https://github.com/JeffersonLab/hadron          devel
-hadron-meta            https://github.com/JeffersonLab/hadron          devel-meta
+hadron-master          https://github.com/JeffersonLab/hadron          master
 tensor                 https://github.com/JeffersonLab/tensor          master
 redstar                https://github.com/JeffersonLab/redstar         devel
+redstar-master         https://github.com/JeffersonLab/redstar         master
 adat                   https://github.com/JeffersonLab/adat            devel
+adat-master            https://github.com/JeffersonLab/adat            master
 colorvec               https://github.com/JeffersonLab/colorvec        devel
+colorvec-master        https://github.com/JeffersonLab/colorvec        master
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
 primme                 https://github.com/primme/primme                eloy/primme-3.3
 magma                  http://icl.utk.edu/projectsfiles/magma/downloads/magma-2.7.1.tar.gz
