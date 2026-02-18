@@ -205,8 +205,10 @@ module load rocm
 module load craype-accel-amd-gfx90a # loads GTL
 module load cmake
 ./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
-# NOTE: don't install chroma and redstar on the same directory, chroma needs c++20 and redstar c++17
-./chromaform redstar --std=c++17 --superb --hip MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` --env=env_extra0.sh --install-dir=install-redstar
+# NOTE: unload the following module to avoid compiling issues, see:
+#       https://docs.olcf.ornl.gov/systems/frontier_user_guide.html#olcfdev-1806-cce-17-0-0-and-rocm-5-7-1-c-20-complex-and-openmp-offload-breakage
+module unload craype-accel-amd-gfx90a
+./chromaform redstar --superb --hip MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` --env=env_extra0.sh
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake
