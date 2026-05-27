@@ -5,7 +5,7 @@ Automatic installation of JLab's chroma and redstar packages.
 
 ```bash
 chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]                       \\
-           [--float] [--cuda|--hip] [--mg] [--next] [--superb]                            \\
+           [--float] [--cuda|--hip] [--mg] [--master] [--next] [--superb]                 \\
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
@@ -65,15 +65,13 @@ Some packages have special optional features.
    Install multigrid extension of chroma; it isn't installed by default.
 * `--superb`:
    Install the superbblas extensions of chroma; it isn't installed by default.
-* `--pdf`:
-   Install the devel-pdf branches of adat, colorvec and redstar; the devel branch is
-   installed by default.
+* `--master`:
+   Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
+   branch is installed by default otherwise.
 * `--next`:
    Install upcoming versions of some packages; the version in devel or master is
    installed by default. Used by:
    - chroma: new disconnected diagram task based on frequency splitting.
-   - adat/colorvec/redstar: phasing support and new keys for correlation functions,
-     branch `eloy/mix-phasings-with-momclass`.
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
@@ -123,9 +121,8 @@ Control the flags use for building the packages.
    Append flags in CFLAGS and CXXFLAGS to activate proper extensions in the compiler,
    and set the QphiX isa.
 
-* `--std=c++11|c++14|c++20`:
-   Append the given flag to CXXFLAGS; --std=c++20 is appended if flag '--hip' or ---cuda'
-   is set; otherwise, --std=c++14 is appended by default.
+* `--std=c++20|c++23`:
+   Append the given flag to CXXFLAGS; --std=c++20 is the default.
 
 * `--autoflags=no`:
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
@@ -205,8 +202,10 @@ module load rocm
 module load craype-accel-amd-gfx90a # loads GTL
 module load cmake
 ./chromaform --hip --mg --superb chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
-# NOTE: don't install chroma and redstar on the same directory, chroma needs c++20 and redstar c++17
-./chromaform redstar --std=c++17 --superb --hip MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` --env=env_extra0.sh --install-dir=install-redstar
+# NOTE: unload the following module to avoid compiling issues, see:
+#       https://docs.olcf.ornl.gov/systems/frontier_user_guide.html#olcfdev-1806-cce-17-0-0-and-rocm-5-7-1-c-20-complex-and-openmp-offload-breakage
+module unload craype-accel-amd-gfx90a
+./chromaform redstar --superb --hip MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` --env=env_extra0.sh
 
 # Default environment at NERSC (executables work for haswell & KNL)
 module load cmake
