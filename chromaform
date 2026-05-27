@@ -208,7 +208,13 @@ if [ x${PYTHON} == x ]; then
 	fi
 fi
 
-MYMAKE="${MAKE:-mymake}"
+if [ x${MAKE}x != xx ]; then
+	MYMAKE="${MAKE}"
+elif command -v mymake &> /dev/null ; then
+	MYMAKE="mymake"
+else
+	MYMAKE="make"
+fi
 if [ x${MAKE_JN}x == xx ]; then
 	if [ -r /proc/cpuinfo ]; then
 		MAKE_JN="$(( (`grep "^processor" /proc/cpuinfo | wc -l` + 2) / 3 ))"
@@ -231,6 +237,65 @@ case "$MAKE_JN" in
 0) MAKE_JN=1 ;;
 esac
 export MAKE_JN
+
+# Ensure wget is available; on macOS try to install it via Homebrew automatically
+if ! command -v wget &> /dev/null ; then
+	if [ "`uname -s`" == "Darwin" ] && command -v brew &> /dev/null ; then
+		echo "#> wget not found; installing via Homebrew..."
+		brew install wget || { echo "#> 'brew install wget' failed; please install wget manually" >&2; exit 1; }
+	else
+		echo "#> wget not found in PATH; please install wget and re-run" >&2
+		exit 1
+	fi
+fi
+
+# Ensure gfortran is available; on macOS try to install it via Homebrew (it ships with gcc)
+if ! command -v gfortran &> /dev/null ; then
+	if [ "`uname -s`" == "Darwin" ] && command -v brew &> /dev/null ; then
+		echo "#> gfortran not found; installing gcc (which provides gfortran) via Homebrew..."
+		brew install gcc || { echo "#> 'brew install gcc' failed; please install gfortran manually" >&2; exit 1; }
+		if ! command -v gfortran &> /dev/null ; then
+			# Homebrew installs gfortran as gfortran-<major> (e.g. gfortran-15); expose it as plain 'gfortran'
+			brew_gfortran="$( ls -1 "$( brew --prefix )/bin/" 2>/dev/null | grep -E '^gfortran-[0-9]+$' | sort -V | tail -1 )"
+			if [ x${brew_gfortran}x != xx ] ; then
+				echo "#> Linking $( brew --prefix )/bin/${brew_gfortran} as 'gfortran' in $( brew --prefix )/bin"
+				ln -sf "$( brew --prefix )/bin/${brew_gfortran}" "$( brew --prefix )/bin/gfortran" || \
+					{ echo "#> Could not create gfortran symlink; set FC=${brew_gfortran} manually" >&2; exit 1; }
+			else
+				echo "#> Installed gcc but cannot find a gfortran-<n> binary; please install gfortran manually" >&2
+				exit 1
+			fi
+		fi
+	else
+		echo "#> gfortran not found in PATH; please install gfortran (e.g. 'brew install gcc' on macOS) and re-run" >&2
+		exit 1
+	fi
+fi
+
+# On macOS, ensure Homebrew LLVM clang is available — Apple's bundled clang rejects -fopenmp,
+# while Homebrew LLVM clang accepts it natively and ships its own libomp.
+# Sets BREW_LLVM_PREFIX for the compiler-defaults block below.
+BREW_LLVM_PREFIX=""
+if [ "`uname -s`" == "Darwin" ]; then
+	for prefix in /opt/homebrew/opt/llvm /usr/local/opt/llvm ; do
+		if [ -x "${prefix}/bin/clang" ]; then BREW_LLVM_PREFIX="${prefix}"; break; fi
+	done
+	if [ x${BREW_LLVM_PREFIX}x == xx ] && command -v brew &> /dev/null ; then
+		echo "#> Homebrew LLVM not found; installing it for native -fopenmp support..."
+		brew install llvm || { echo "#> 'brew install llvm' failed; please install LLVM manually" >&2; exit 1; }
+		for prefix in /opt/homebrew/opt/llvm /usr/local/opt/llvm ; do
+			if [ -x "${prefix}/bin/clang" ]; then BREW_LLVM_PREFIX="${prefix}"; break; fi
+		done
+	fi
+fi
+
+# On macOS, ensure GNU coreutils' gsplit is available (BSD split lacks the -n flag used by
+# superbblas' Makefile). Skipped if not on Darwin or brew is missing.
+if [ "`uname -s`" == "Darwin" ] && ! command -v gsplit &> /dev/null && command -v brew &> /dev/null ; then
+	echo "#> gsplit (GNU split) not found; installing coreutils via Homebrew..."
+	brew install coreutils || { echo "#> 'brew install coreutils' failed; please install GNU coreutils manually" >&2; exit 1; }
+fi
+
 if [ x${CUDADIR}x == xx ] ; then
 	CUDADIR="$( realpath $( dirname $( which nvcc ))/..)"
 	# If using NVHPC, point out the cuda directory
@@ -399,13 +464,58 @@ if [ ${use_mpi} == duno ] ; then
 	fi
 fi
 
+# Scalar (--mpi=no) builds must not share install/build trees with MPI builds: an MPI-built
+# QDP++ reports CXX=mpicxx via qdp++-config, which then leaks into chroma's sub-libraries.
+# Tag MPI-sensitive package dirs so the two configurations coexist in one worktree.
+[ ${use_mpi} == yes ] && mpi_tag="" || mpi_tag="-scalar"
+
+# On macOS, when MPI is requested and chromaform isn't going to build openmpi/mvapich2 itself,
+# auto-install open-mpi via Homebrew if no MPI wrapper is on PATH.
+if [ ${use_mpi} == yes ] && [ "`uname -s`" == "Darwin" ] && [ x${openmpi}x == xx ] && [ x${mvapich2}x == xx ] && ! command -v mpicc &> /dev/null ; then
+	if command -v brew &> /dev/null ; then
+		echo "#> MPI requested but mpicc not found; installing open-mpi via Homebrew..."
+		brew install open-mpi || { echo "#> 'brew install open-mpi' failed; please install an MPI implementation manually (or pass --mpi=no)" >&2; exit 1; }
+	else
+		echo "#> MPI requested but mpicc not found and Homebrew is unavailable; install an MPI implementation manually (or pass --mpi=no)" >&2
+		exit 1
+	fi
+fi
+
 # Set default compilers
+# Pick the underlying (non-MPI) compiler:
+#   - On macOS with Homebrew LLVM, prefer LLVM clang (supports -fopenmp natively, unlike Apple clang).
+#   - Otherwise fall back to gcc/g++ if available.
+underlying_cc=""
+underlying_cxx=""
+if [ x${BREW_LLVM_PREFIX}x != xx ]; then
+	underlying_cc="${BREW_LLVM_PREFIX}/bin/clang"
+	underlying_cxx="${BREW_LLVM_PREFIX}/bin/clang++"
+	# Help the linker find Homebrew LLVM's libomp at link- and run-time
+	case " ${LDFLAGS} " in *" -L${BREW_LLVM_PREFIX}/lib "*) ;; *) LDFLAGS+=" -L${BREW_LLVM_PREFIX}/lib -Wl,-rpath,${BREW_LLVM_PREFIX}/lib" ;; esac
+fi
+[ x${underlying_cc}x == xx ] && command -v gcc &> /dev/null && underlying_cc=gcc
+[ x${underlying_cxx}x == xx ] && command -v g++ &> /dev/null && underlying_cxx=g++
+
 if [ x${openmpi}x == xx -a x${mvapich2}x == xx ]; then
 	if [ $use_mpi == yes ] ; then
-		CC="${CC:-mpicc}"
-		CXX="${CXX:-mpicxx}"
+		# Route MPI wrappers (mpicc/mpicxx) through the chosen underlying compiler.
+		[ x${OMPI_CC}x == xx -a x${underlying_cc}x != xx ] && export OMPI_CC="${underlying_cc}"
+		[ x${OMPI_CXX}x == xx -a x${underlying_cxx}x != xx ] && export OMPI_CXX="${underlying_cxx}"
+		[ x${MPICH_CC}x == xx -a x${underlying_cc}x != xx ] && export MPICH_CC="${underlying_cc}"
+		[ x${MPICH_CXX}x == xx -a x${underlying_cxx}x != xx ] && export MPICH_CXX="${underlying_cxx}"
+		# Default CC/CXX to mpicc/mpicxx when MPI is requested and the wrappers exist.
+		# If they don't exist yet, leave the defaults as the bare wrapper name; whatever
+		# installs MPI later (e.g. the auto-install above, or chromaform itself) will
+		# put them on PATH before any compile step actually runs.
+		[ x${CC}x == xx ] && CC="mpicc"
+		[ x${CXX}x == xx ] && CXX="mpicxx"
+	else
+		[ x${CC}x == xx ] && CC="${underlying_cc}"
+		[ x${CXX}x == xx ] && CXX="${underlying_cxx}"
 	fi
 else
+	[ x${CC}x == xx ] && CC="${underlying_cc}"
+	[ x${CXX}x == xx ] && CXX="${underlying_cxx}"
 	if [ x${CXX} == xmpicxx -o x${CC} == xmpicc ]; then
 		echo "When compiling openmpi or mvapich2, please set \$CC and \$CXX to something else other than mpicc and mpicxx"
 		exit 1
@@ -718,7 +828,7 @@ fi
 [ x${adat}${redstardl}x != xx -a ${use_superb} == yes ] && superbblas="${superbblas:-update}"
 [ x${harom}x != xx ] && hadron="${hadron:-update}" && qdp="${qdp:-update}"
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
-[ x${qdp}x != xx ] && qmp="${qmp:-update}"
+[ x${qdp}x != xx -a ${use_mpi} == yes ] && qmp="${qmp:-update}"
 
 
 [ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && lld="${lld:-update}" && unwind="${unwind:-update}"
@@ -772,7 +882,37 @@ fi
 if [ ${use_autoflags} == yes ]; then
 	info "No CPU architecture given; guessing ..."
 	if [ x${use_march}x == xx ]; then
-		if grep -q "AMD EPYC ...4" /proc/cpuinfo ; then
+		if [ "`uname -s`" == "Darwin" ] && command -v sysctl &> /dev/null ; then
+			# macOS: /proc/cpuinfo doesn't exist; use sysctl to fetch the same info
+			if [ "`uname -m`" == "arm64" ]; then
+				info "Detected Apple Silicon (arm64); no specific march flags will be set"
+			else
+				darwin_vendor="$( sysctl -n machdep.cpu.vendor 2>/dev/null )"
+				darwin_brand="$( sysctl -n machdep.cpu.brand_string 2>/dev/null )"
+				if [ "${darwin_vendor}" == "AuthenticAMD" ]; then
+					info "Detected AMD on macOS; defaulting to zen2"
+					use_march="zen2"
+				elif [ "${darwin_vendor}" == "GenuineIntel" ] || [ x${darwin_vendor}x == xx ]; then
+					if [ "$( sysctl -n hw.optional.amx_bf16 2>/dev/null )" == "1" ]; then
+						info "Detected intel with avx512_fp16 support"
+						use_march="avx512_fp16"
+					elif [ "$( sysctl -n hw.optional.avx512f 2>/dev/null )" == "1" ]; then
+						info "Detected intel with avx512 support"
+						use_march="avx512"
+					elif [ "$( sysctl -n hw.optional.avx2_0 2>/dev/null )" == "1" ]; then
+						info "Detected intel with avx2 support"
+						use_march="avx2"
+					elif [ "$( sysctl -n hw.optional.avx1_0 2>/dev/null )" == "1" ]; then
+						info "Detected intel with avx support"
+						use_march="avx"
+					else
+						info "Could not detect AVX level on macOS Intel (${darwin_brand}); no specific march flags will be set"
+					fi
+				else
+					info "Unknown CPU vendor on macOS (${darwin_vendor:-unknown}, ${darwin_brand}); no specific march flags will be set"
+				fi
+			fi
+		elif grep -q "AMD EPYC ...4" /proc/cpuinfo ; then
 			info "Detected AMD zen4"
 			use_march="zen4"
 		elif grep -q "AMD EPYC ...3" /proc/cpuinfo ; then
@@ -907,6 +1047,20 @@ if [ ${use_autoflags} == yes ]; then
 					break
 				fi
 			done
+			# Not found in either Homebrew location; try installing it
+			if [ $apple_found_omp == nop ] && command -v brew &> /dev/null ; then
+				echo "#> libomp not found; installing via Homebrew so Apple clang can use OpenMP..."
+				if brew install libomp ; then
+					for prefix in /opt/homebrew/opt/libomp /usr/local/opt/libomp ; do
+						if [ -d "$prefix" ]; then
+							libomp_apple_cflags="-I${prefix}/include"
+							libomp_apple_libs="-L${prefix}/lib -lomp"
+							apple_found_omp="yes"
+							break
+						fi
+					done
+				fi
+			fi
 		fi
 		if [ $apple_found_omp == yes ] ; then
 			CXXFLAGS+=" -Xpreprocessor -fopenmp ${libomp_apple_cflags}"
@@ -1677,6 +1831,9 @@ if [ x${openblas}x != xx ]; then
 	[ "`uname -s`" == "Darwin" -a x${openblas_use_gcc}x == xx ] && openblas_use_gcc="yes"
 	openblas_use_openmp=1
 	[ x${use_openmp}x == xnopx ] && openblas_use_openmp=0
+	# OpenBLAS' internal build injects bare -fopenmp into its compile lines, which
+	# Apple clang rejects. Fall back to pthread threading on macOS.
+	[ "`uname -s`" == "Darwin" ] && openblas_use_openmp=0
 	if [ $do_cleaning == yes ]; then
 		[ ${openblas} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${openblas} == install -o ! -d ${idir} ]; then
@@ -1688,10 +1845,19 @@ if [ x${openblas}x != xx ]; then
 			# NOTE: please do the tests, we have seen openblas giving wrong results for some compilers
 			unset CFLAGS
 			unset CXXFLAGS
+			# On macOS Homebrew gfortran's link spec emits a malformed -lto_library which Apple ld
+			# rejects, breaking only the OpenBLAS test binaries (libs/shared themselves build fine).
+			# Build explicit targets there to skip the tests.
+			[ "`uname -s`" == "Darwin" ] && openblas_targets="libs netlib shared" || openblas_targets=""
 			if [ x${openblas_use_gcc} == xyes ]; then
-				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} CC=gcc CXX=g++ FC=gfortran
+				# OpenBLAS is single-process; use the underlying (non-MPI) compiler we picked.
+				# On macOS, that is Homebrew LLVM clang when available (Apple's gcc/g++ shims
+				# reject -fopenmp). LLVM doesn't ship a Fortran compiler so keep gfortran.
+				openblas_cc="${underlying_cc:-gcc}"
+				openblas_cxx="${underlying_cxx:-g++}"
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} CC=${openblas_cc} CXX=${openblas_cxx} FC=gfortran ${openblas_targets}
 			else
-				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp}
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} ${openblas_targets}
 			fi
 			run ${MYMAKE} install PREFIX=${idir}
 		)
@@ -1775,7 +1941,7 @@ if [ x${boost}x != xx ]; then
 fi
 
 if [ x${tensor}x != xx ]; then
-	tensor_install="tensor"
+	tensor_install="tensor${mpi_tag}"
 	sdir="${srcdir}/${tensor_src}"
 	bdir="${builddir}/${tensor_install}"
 	idir="${installdir}/${tensor_install}"
@@ -2032,9 +2198,23 @@ if [ x${qdp}x != xx ]; then
 	qdp_openmp_flag="--disable-openmp"
 	qdp_cmake_openmp="-DQDP_ENABLE_OPENMP=OFF"
 	[ x${use_openmp} == xyes ] && qdp_openmp_flag="--enable-openmp" && qdp_cmake_openmp="-DQDP_ENABLE_OPENMP=ON"
+	# When --mpi=no, build QDP++ in scalar mode and skip --with-qmp / parallel-io.
+	if [ ${use_mpi} == yes ]; then
+		qdp_parallel_flag="--enable-parallel-arch=parscalar"
+		qdp_io_flag="--enable-parallel-io"
+		qdp_qmp_flag="--with-qmp=${installdir}/${qmp_install}"
+		qdp_cmake_parallel_flag="-DQDP_PARALLEL_ARCH=parscalar"
+		qdp_cmake_qmp_flag="-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP"
+	else
+		qdp_parallel_flag="--enable-parallel-arch=scalar"
+		qdp_io_flag=""
+		qdp_qmp_flag=""
+		qdp_cmake_parallel_flag="-DQDP_PARALLEL_ARCH=scalar"
+		qdp_cmake_qmp_flag=""
+	fi
 
 	for qdp_nd in 3 4 ; do
-		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}"
+		qdp_install="${qdp_src}-${qdp_prec}-nd${qdp_nd}${mpi_tag}"
 		[ ${use_qdp_cmake} == yes ] && qdp_install+="-cmake"
 		bdir="${builddir}/${qdp_install}"
 		idir="${installdir}/${qdp_install}"
@@ -2050,23 +2230,23 @@ if [ x${qdp}x != xx ]; then
 				run ${sdir}/configure \
 					--prefix=${idir} \
         				--enable-Nd=$qdp_nd \
-				        --enable-parallel-arch=parscalar \
+				        ${qdp_parallel_flag} \
 					--enable-precision=${qdp_prec} \
 					--enable-filedb \
 					--disable-generics \
-					--enable-parallel-io \
+					${qdp_io_flag} \
 					--enable-alignment=64 \
-					--with-qmp=${installdir}/${qmp_install} \
+					${qdp_qmp_flag} \
 				        ${qdp_openmp_flag}
 			else
 				run cmake \
 					-DCMAKE_INSTALL_PREFIX=${idir} \
 					-DQDP_BUILD_EXAMPLES=OFF \
-					-DQDP_PARALLEL_ARCH=parscalar \
+					${qdp_cmake_parallel_flag} \
 					-DQDP_ND=$qdp_nd \
 					-DQDP_PRECISION=${qdp_prec} \
 					${qdp_cmake_openmp} \
-					-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
+					${qdp_cmake_qmp_flag} \
 					$qdp_extra \
 					${CMAKE_EXTRA_FLAGS} \
 					${sdir}
@@ -2075,9 +2255,9 @@ if [ x${qdp}x != xx ]; then
 			popd
 		fi
 	done
-	qdp_install="${qdp_src}-${qdp_prec}-nd4"
+	qdp_install="${qdp_src}-${qdp_prec}-nd4${mpi_tag}"
 	[ ${use_qdp_cmake} == yes ] && qdp_install+="-cmake"
-	qdp3d_install="${qdp_src}-${qdp_prec}-nd3"
+	qdp3d_install="${qdp_src}-${qdp_prec}-nd3${mpi_tag}"
 	[ ${use_qdp_cmake} == yes ] && qdp3d_install+="-cmake"
 	if [ $use_qdpjit == yes ]; then
 		export LD_LIBRARY_PATH="${installdir}/${qdp_install}/lib:$LD_LIBRARY_PATH"
@@ -2351,9 +2531,9 @@ if [ x${xsimd}x != xx ]; then
 fi
 
 if [ x${superbblas}x != xx ]; then
-	superbblas_install="superbblas-cpu"
-	[ $use_arch == cuda ] && superbblas_install="superbblas-cuda"
-	[ $use_arch == hip ] && superbblas_install="superbblas-hip"
+	superbblas_install="superbblas-cpu${mpi_tag}"
+	[ $use_arch == cuda ] && superbblas_install="superbblas-cuda${mpi_tag}"
+	[ $use_arch == hip ] && superbblas_install="superbblas-hip${mpi_tag}"
 	[ $use_superb_next == yes ] && superbblas_install+="-next"
 	sdir="${srcdir}/${superbblas_src}"
 	bdir="${builddir}/${superbblas_install}"
@@ -2364,6 +2544,9 @@ if [ x${superbblas}x != xx ]; then
 	elif [ ${superbblas} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${superbblas_src}/ $bdir
+		# macOS BSD split lacks the -n flag used by superbblas' Makefile; swap in gsplit (from GNU coreutils).
+		[ "`uname -s`" == "Darwin" ] && command -v gsplit &> /dev/null && \
+			sed -i.bak 's/^\([[:space:]]*\)split \(-d -n l\)/\1gsplit \2/' $bdir/src/Makefile
 		make_action="install_cpu"
 		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
@@ -2489,10 +2672,11 @@ if [ x${chroma}x != xx ]; then
 			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 			[ x${redstardl}x != xx ] && chroma_extra+=" --with-redstar-datalib=${installdir}/${redstardl_install}"
 			[ $use_next == yes -a x${boost}x != xx ] && chroma_extra+=" --with-boost=${srcdir}/${boost_install}"
+			[ ${use_mpi} == yes ] && chroma_qmp_flag="--with-qmp=${installdir}/${qmp_install}" || chroma_qmp_flag=""
 			run ${sdir}/configure \
 				--prefix=${idir} \
 				--with-qdp=${installdir}/${qdp_install} \
-				--with-qmp=${installdir}/${qmp_install} \
+				${chroma_qmp_flag} \
 			        --enable-static-packed-gauge \
 			        --enable-fused-clover-deriv-loops \
 				$chroma_extra
@@ -2529,8 +2713,8 @@ if [ x${chroma}x != xx ]; then
 fi
 
 if [ x${adat}x != xx ]; then
-	adat_install="${adat_src}"
-	[ $use_superb == yes ] && adat_install="${adat_src}-${superbblas_src}"
+	adat_install="${adat_src}${mpi_tag}"
+	[ $use_superb == yes ] && adat_install="${adat_src}-${superbblas_src}${mpi_tag}"
 	sdir="${srcdir}/${adat_src}"
 	bdir="${builddir}/${adat_install}"
 	idir="${installdir}/${adat_install}"
@@ -2553,7 +2737,7 @@ if [ x${adat}x != xx ]; then
 fi
 
 if [ x${hadron}x != xx ]; then
-	hadron_install="${hadron_src}-${use_arch}"
+	hadron_install="${hadron_src}-${use_arch}${mpi_tag}"
 	sdir="${srcdir}/${hadron_src}"
 	bdir="${builddir}/${hadron_install}"
 	idir="${installdir}/${hadron_install}"
