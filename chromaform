@@ -2111,6 +2111,7 @@ if [ x${quda}x != xx ]; then
 				-DCMAKE_CXX_COMPILER=${CXX} \
 				-DCMAKE_LINKER=${CXX} \
 				-DCMAKE_EXE_LINKER_FLAGS=-L${CUDADIR} \
+				-DCCCL_ENABLE_DEFAULT_THRUST_TARGET=OFF \
 			"
 		else
 			quda_extra_args="\
@@ -2368,7 +2369,7 @@ if [ x${superbblas}x != xx ]; then
 		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
 			[ x${thrust}x != xx ] && sb_nvcc_extra="-I${srcdir}/${cub_src} -I${srcdir}/${thrust_src}"
-			sb_nvcc_extra+=" -std=c++14"
+			sb_nvcc_extra+=" -std=c++20"
 			[ $use_opt == debug ] && sb_nvcc_extra+=" -G"
 			[ $use_opt == opt ] && sb_nvcc_extra+=" -O3"
 			export NVCCFLAGS="-x cu -arch=$SM $NVCCFLAGS $sb_nvcc_extra"
@@ -2443,7 +2444,13 @@ if [ x${redstardl}x != xx ]; then
 		redstardl_extra=""
 		[ $use_superb == yes ] && redstardl_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 		[ $use_superb == yes -a $use_arch != cpu ] && redstardl_extra+=" --with-gpu"
-		[ $use_superb == yes -a $use_arch == cuda ] && LIBS+=" -lcusolver -lcusparse -lcublas -lcudart"
+		if [ $use_superb == yes -a $use_arch == cuda ] ; then
+			CFLAGS+=" -I${CUDADIR}/include"
+			CXXFLAGS+=" -I${CUDADIR}/include"
+			[ -d ${CUDADIR}/lib64 ] && LDFLAGS+=" -L${CUDADIR}/lib64"
+			[ -d ${CUDADIR}/lib ] && LDFLAGS+=" -L${CUDADIR}/lib"
+			LIBS+=" -lcusolver -lcusparse -lcublas -lcudart"
+		fi
 		[ $use_superb == yes -a $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64"
 		[ $use_mpi == yes ] && redstardl_extra+=" --enable-mpi"
 		run ${sdir}/configure --prefix=${idir} $redstardl_extra
