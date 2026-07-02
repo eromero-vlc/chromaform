@@ -16,7 +16,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
            [ncurses] [libfuse3] [anarchofs]                                               \\
            [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
-           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar]                   \\
+           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
 ```
@@ -68,10 +68,9 @@ Some packages have special optional features.
 * `--master`:
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
-* `--next`:
-   Install upcoming versions of some packages; the version in devel or master is
-   installed by default. Used by:
-   - chroma: new disconnected diagram task based on frequency splitting.
+* `--next`
+   Install upcoming versions of some packages; used by:
+   - chroma: compile adat connection used by `SUPERB_CORR` task.
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
@@ -269,16 +268,12 @@ module load CMake/3.18.0
 ./chromaform --mg --cuda --superb chroma SM=sm_80 FC=gfortran
 
 # Daint.Alps (H100)
-uenv start --view=modules prgenv-gnu/24.11:v2
+uenv start --view=modules prgenv-gnu/26.3
 module load cray-mpich
 module load cuda
 module load gcc
 module load openblas
 module load cmake
-# NOTE: quda gets confused with these env variables
-export -n MPICC
-export -n MPICXX
-export -n MPIFORT
 ./chromaform --mg --cuda --superb chroma --env=env_extra.sh SM=sm_90 CC=mpicc CXX=mpicxx
 
 # Perlmutter CPU
