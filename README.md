@@ -10,7 +10,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
-           [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
+           [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|...|-zen5] [--autoflags=no] \\
            [--std=c++11|--std=c++14|--std=c++17|--std=c++20]                              \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
@@ -125,7 +125,7 @@ Control the flags use for building the packages.
 
 * `--autoflags=no`:
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
-   --avx512, --knl, --zen2, --zen3, and --std, or any automatic heuristic in this script.
+   --avx512, --knl, --zen2, --zen3, --zen4, --zen5, and --std, or any automatic heuristic in this script.
    By default, besides setting CFLAGS and CXXFLAGS as described, flags are added to
    activate AVX2 and OpenMP compiler extensions.
 

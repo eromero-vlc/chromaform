@@ -12,7 +12,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
            [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
-           [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|--zen3] [--autoflags=no]    \\
+           [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|...|-zen5] [--autoflags=no] \\
            [--std=c++11|--std=c++14|--std=c++17|--std=c++20]                              \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
@@ -112,7 +112,7 @@ Control the flags use for building the packages.
    Append '-g3 -O0' to CFLAGS and CXXFLAGS if '-g' is given, of '-O3' if '-O' is given, 
    or no flags are added if '-Onone' is given. By default, '-O3' is appended.
 
---avx|--avx2|--knl|--avx512|--zen2|--zen3
+--avx|--avx2|--knl|--avx512|--zen2|--zen3|--zen4|--zen5
    Append flags in CFLAGS and CXXFLAGS to activate proper extensions in the compiler,
    and set the QphiX isa.
 
@@ -121,7 +121,7 @@ Control the flags use for building the packages.
 
 --autoflags=no
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
-   --avx512, --knl, --zen2, --zen3, and --std, or any automatic heuristic in this script.
+   --avx512, --knl, --zen2, --zen3, --zen4, --zen5, and --std, or any automatic heuristic in this script.
    By default, besides setting CFLAGS and CXXFLAGS as described, flags are added to
    activate AVX2 and OpenMP compiler extensions.
 
@@ -276,6 +276,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--knl) use_march="knl";;
 	--zen2) use_march="zen2";;
 	--zen3) use_march="zen3";;
+	--zen4) use_march="zen4";;
+	--zen5) use_march="zen5";;
 	--mg) use_mg="yes";;
 	--clean) action="clean";do_cleaning="yes";;
 	--install) action="install";;
@@ -637,7 +639,7 @@ if [ x${use_llvm}x == xx ]; then
     else
 	llvm_ver="$( `hipconfig -R`/llvm/bin/llvm-config --version )"
         case $llvm_ver in
-	14*|15*|16*)         use_llvm="llvm-system" ;;
+	14*|15*|16*|22*|23*) use_llvm="llvm-system" ;;
         *)                   use_llvm="llvm";;
         esac
     fi
@@ -772,15 +774,23 @@ fi
 if [ ${use_autoflags} == yes ]; then
 	info "No CPU architecture given; guessing ..."
 	if [ x${use_march}x == xx ]; then
-		if grep -q "AMD EPYC ...4" /proc/cpuinfo ; then
+		if grep -q "AMD EPYC ...5" /proc/cpuinfo ; then
+			info "Detected AMD zen5"
+			use_march="zen5"
+		elif grep -q "AMD EPYC ...4" /proc/cpuinfo ; then
 			info "Detected AMD zen4"
 			use_march="zen4"
 		elif grep -q "AMD EPYC ...3" /proc/cpuinfo ; then
 			info "Detected AMD zen3"
 			use_march="zen3"
 		elif grep -q "vendor_id.*AuthenticAMD" /proc/cpuinfo ; then
-			info "Detected AMD zen2"
-			use_march="zen2"
+			if grep -q "avx512" /proc/cpuinfo ; then
+				info "Detected AMD zen4"
+				use_march="zen4"
+			else
+				info "Detected AMD zen2"
+				use_march="zen2"
+			fi
 		elif grep -q "cpu.*:.*POWER" /proc/cpuinfo ; then
 			info "Detected POWER architecture"
 			use_march="power"
@@ -887,6 +897,14 @@ if [ ${use_autoflags} == yes ]; then
 				;;
 			esac
 			;;
+		zen5)
+			case "`detect_compiler`" in
+			*)
+				CXXFLAGS+=" -march=znver5"
+				CFLAGS+=" -march=znver5"
+				;;
+			esac
+			;;
 		power)
 			info "Not setting specific architecture flags for POWER architecture"
 			;;
@@ -931,7 +949,7 @@ if [ ${use_autoflags} == yes ]; then
 			LDFLAGS+=" -qopenmp"
 			;;
 		*)
-			echo detecting craype
+			info detecting craype
 			which "$CC" | grep craype 
 			# Cray compiler wrapper incorrectly add extra flags when adding -fopenmp
 			if [ $use_arch == hip ] && which "$CC" | grep craype &>/dev/null ; then
@@ -2027,6 +2045,11 @@ if [ x${qdp}x != xx ]; then
 		16*) qdp_extra+=" -DQDP_ENABLE_LLVM16=ON" ;;
 		17*) qdp_extra+=" -DQDP_ENABLE_LLVM17=ON" ;;
 		18*) qdp_extra+=" -DQDP_ENABLE_LLVM18=ON" ;;
+		19*) qdp_extra+=" -DQDP_ENABLE_LLVM19=ON" ;;
+		20*) qdp_extra+=" -DQDP_ENABLE_LLVM20=ON" ;;
+		21*) qdp_extra+=" -DQDP_ENABLE_LLVM21=ON" ;;
+		22*) qdp_extra+=" -DQDP_ENABLE_LLVM22=ON" ;;
+		23*) qdp_extra+=" -DQDP_ENABLE_LLVM23=ON" ;;
         	esac
 	fi
 	qdp_openmp_flag="--disable-openmp"
