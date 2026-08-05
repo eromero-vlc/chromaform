@@ -212,7 +212,6 @@ module load cmake
 
 # Lumi (MI250)
 module load PrgEnv-amd
-module load amd/5.5.1
 module load craype-accel-amd-gfx90a
 
 ./chromaform --hip --mg chroma MAKE_JN=30 AMDGPU_TARGETS='gfx90a' CC=`which cc` CXX=`which CC` FC=ftn --env=env_extra.sh
@@ -221,7 +220,6 @@ module load craype-accel-amd-gfx90a
 
 # Adastra (MI250)
 module load PrgEnv-amd
-module load amd/5.5.1
 module load craype-accel-amd-gfx90a
 
 # NOTE: Avoid compiling on the frontend because it is zen4 but gpu nodes are zen3.

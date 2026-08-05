@@ -1706,8 +1706,12 @@ if [ x${openblas}x != xx ]; then
 			# NOTE: please do the tests, we have seen openblas giving wrong results for some compilers
 			unset CFLAGS
 			unset CXXFLAGS
+			unset LDFLAGS
+			export OMP_NUM_THREADS=1
 			if [ x${openblas_use_gcc} == xyes ]; then
 				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} CC=gcc CXX=g++ FC=gfortran
+			elif [ $use_arch == hip ]; then
+				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp} CC=amdclang CXX=amdclang++ FC=amdflang
 			else
 				run ${MYMAKE} -j $MAKE_JN USE_OPENMP=${openblas_use_openmp}
 			fi
