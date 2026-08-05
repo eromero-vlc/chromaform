@@ -619,7 +619,7 @@ if [ x${use_cmake}x == xx ]; then
 		cmake_version="`cmake --version 2>&1  | grep "^cmake version" | tr . ' '`"
 		ver_maj="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_maj; done`"
 		ver_minor="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_minor; done`"
-		( [ $use_arch != hip -a $ver_maj -ge 3 -a $ver_minor -ge 18 ] || [ $use_arch == hip -a $ver_maj -ge 3 -a $ver_minor -ge 21 ] ) && use_cmake="cmake-system"
+		( [ $ver_maj -ge 4 ] || [ $use_arch != hip -a $ver_maj -ge 3 -a $ver_minor -ge 18 ] || [ $use_arch == hip -a $ver_maj -ge 3 -a $ver_minor -ge 21 ] ) && use_cmake="cmake-system"
 	fi
 fi
 
