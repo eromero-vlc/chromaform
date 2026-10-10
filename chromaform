@@ -2466,24 +2466,24 @@ if [ x${redstardl}x != xx ]; then
 		[ ${redstardl} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${redstardl} == install -o ! -d ${idir} ]; then
 		( cd $sdir && run autoreconf -f )
-		run rm -rf $bdir $idir
-		run mkdir -p $bdir
-		pushd $bdir
-		redstardl_extra=""
-		[ $use_superb == yes ] && redstardl_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
-		[ $use_superb == yes -a $use_arch != cpu ] && redstardl_extra+=" --with-gpu"
-		if [ $use_superb == yes -a $use_arch == cuda ] ; then
-			CFLAGS+=" -I${CUDADIR}/include"
-			CXXFLAGS+=" -I${CUDADIR}/include"
-			[ -d ${CUDADIR}/lib64 ] && LDFLAGS+=" -L${CUDADIR}/lib64"
-			[ -d ${CUDADIR}/lib ] && LDFLAGS+=" -L${CUDADIR}/lib"
-			LIBS+=" -lcusolver -lcusparse -lcublas -lcudart"
-		fi
-		[ $use_superb == yes -a $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64"
-		[ $use_mpi == yes ] && redstardl_extra+=" --enable-mpi"
-		run ${sdir}/configure --prefix=${idir} $redstardl_extra
-		run ${MYMAKE} install -j $MAKE_JN
-		popd
+		(
+			run rm -rf $bdir $idir
+			run mkdir -p $bdir
+			redstardl_extra=""
+			[ $use_superb == yes ] && redstardl_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+			[ $use_superb == yes -a $use_arch != cpu ] && redstardl_extra+=" --with-gpu"
+			if [ $use_superb == yes -a $use_arch == cuda ] ; then
+				CFLAGS+=" -I${CUDADIR}/include"
+				CXXFLAGS+=" -I${CUDADIR}/include"
+				[ -d ${CUDADIR}/lib64 ] && LDFLAGS+=" -L${CUDADIR}/lib64"
+				[ -d ${CUDADIR}/lib ] && LDFLAGS+=" -L${CUDADIR}/lib"
+				LIBS+=" -lcusolver -lcusparse -lcublas -lcudart"
+			fi
+			[ $use_superb == yes -a $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64"
+			[ $use_mpi == yes ] && redstardl_extra+=" --enable-mpi"
+			run ${sdir}/configure --prefix=${idir} $redstardl_extra
+			run ${MYMAKE} install -j $MAKE_JN
+		)
 	fi
 fi
 
