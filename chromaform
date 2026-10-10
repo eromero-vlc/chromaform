@@ -619,7 +619,7 @@ if [ x${use_cmake}x == xx ]; then
 		cmake_version="`cmake --version 2>&1  | grep "^cmake version" | tr . ' '`"
 		ver_maj="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_maj; done`"
 		ver_minor="`echo $cmake_version | while read a a ver_maj ver_minor a ; do echo $ver_minor; done`"
-		( [ $ver_maj -ge 4 ] || [ $use_arch != hip -a $ver_maj -ge 3 -a $ver_minor -ge 18 ] || [ $use_arch == hip -a $ver_maj -ge 3 -a $ver_minor -ge 21 ] ) && use_cmake="cmake-system"
+		( [ $ver_maj -ge 4 ] || [ $use_arch == hip -a $ver_maj -ge 3 -a $ver_minor -ge 21 ] ) && use_cmake="cmake-system"
 	fi
 fi
 
@@ -1264,7 +1264,7 @@ mugiq                  https://github.com/eromero-vlc/mugiq            master
 #mugiq                  https://github.com/ckallidonis/mugiq            master
 quda-mugiq             https://github.com/ckallidonis/quda             CK-MGDeflate
 eigen                  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2
-cmake                  https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3.tar.gz
+cmake                  https://github.com/Kitware/CMake/releases/download/v4.2.5/cmake-4.2.5.tar.gz
 llvm                   https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/llvm-project-18.1.8.src.tar.xz
 cub                    https://github.com/NVIDIA/cub/archive/refs/tags/1.17.2.tar.gz
 thrust                 https://github.com/NVIDIA/thrust/archive/refs/tags/1.17.2.tar.gz
@@ -2553,7 +2553,7 @@ if [ x${chroma}x != xx ]; then
 				-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS $LIBS" \
 				-DQMP_DIR=${installdir}/${qmp_install}/lib/cmake/QMP \
 				-DQDPXX_DIR=${installdir}/${qdp_install}/lib/cmake/QDPXX \
-				-DBLAS_SUFFIX_LINK_FLAGS="$LIBS $chroma_extra_blas" \
+				-DBLAS_SUFFIX_LINK_FLAGS="$LDFLAGS $LIBS $chroma_extra_blas" \
 				$chroma_extra \
 				${CMAKE_EXTRA_FLAGS} \
 				${sdir}
