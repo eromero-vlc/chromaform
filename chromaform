@@ -1990,7 +1990,7 @@ if [ x${qmp}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		if [ ${qmp_install} == qmp ]; then
-			( cd $sdir && run autoreconf -f )
+			( cd $sdir && run autoreconf -fi )
 			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
 		else
 			# QUDA library for HIP is compiled as shared library to avoid a bug, which requies
@@ -2073,7 +2073,7 @@ if [ x${qdp}x != xx ]; then
 			run mkdir -p $bdir
 			pushd $bdir
 			if [ $qdp_src == qdpxx -a ${use_qdp_cmake} == nop ]; then
-				( cd $sdir && run autoreconf -f )
+				( cd $sdir && run autoreconf -fi )
 				run ${sdir}/configure \
 					--prefix=${idir} \
         				--enable-Nd=$qdp_nd \
@@ -2465,10 +2465,11 @@ if [ x${redstardl}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${redstardl} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${redstardl} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		( cd $sdir && run autoreconf -fi )
 		(
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
+			cd $bdir
 			redstardl_extra=""
 			[ $use_superb == yes ] && redstardl_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 			[ $use_superb == yes -a $use_arch != cpu ] && redstardl_extra+=" --with-gpu"
@@ -2508,7 +2509,7 @@ if [ x${chroma}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		if [ ${use_qdp_cmake} == nop ]; then
-			( cd $sdir && run autoreconf -f )
+			( cd $sdir && run autoreconf -fi )
 			if [ x${mgproto}x != xx ]; then
 				chroma_extra="\
 			        	--with-qphix-solver=${installdir}/${qphix_install} \
@@ -2573,7 +2574,7 @@ if [ x${adat}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${adat} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${adat} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		( cd $sdir && run autoreconf -fi )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -2596,7 +2597,7 @@ if [ x${hadron}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${hadron} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${hadron} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		( cd $sdir && run autoreconf -fi )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -2640,7 +2641,7 @@ if [ x${harom}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${harom} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${harom} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		( cd $sdir && run autoreconf -fi )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -2660,7 +2661,7 @@ if [ x${colorvec}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${colorvec} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${colorvec} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		( cd $sdir && run autoreconf -fi )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
@@ -2680,7 +2681,7 @@ if [ x${redstar}x != xx ]; then
 	if [ $do_cleaning == yes ]; then
 		[ ${redstar} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${redstar} == install -o ! -d ${idir} ]; then
-		( cd $sdir && run autoreconf -f )
+		( cd $sdir && run autoreconf -fi )
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
