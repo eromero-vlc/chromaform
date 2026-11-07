@@ -68,9 +68,8 @@ Some packages have special optional features.
 * `--master`:
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
-* `--next`
-   Install upcoming versions of some packages; used by:
-   - chroma: compile adat connection used by `SUPERB_CORR` task.
+* `--rge-no-1pt`:
+   Install the adat and chroma branch `devel-rge-no_1pt`
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
@@ -116,7 +115,7 @@ Control the flags use for building the packages.
    Append '-g3 -O0' to CFLAGS and CXXFLAGS if '-g' is given, of '-O3' if '-O' is given, 
    or no flags are added if '-Onone' is given. By default, '-O3' is appended.
 
-* `--avx`|`--avx2`|`--knl`|`--avx512`|`--zen2`|`--zen3`
+* `--avx`|`--avx2`|`--knl`|`--avx512`|`--zen2`|`--zen3|--zen4|--zen5`
    Append flags in CFLAGS and CXXFLAGS to activate proper extensions in the compiler,
    and set the QphiX isa.
 

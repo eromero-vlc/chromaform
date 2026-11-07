@@ -63,9 +63,8 @@ Some packages have special optional features.
 --master
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
---next
-   Install upcoming versions of some packages; used by:
-   - chroma: compile adat connection used by `SUPERB_CORR` task.
+--rge-no-1pt
+   Install the adat and chroma branch `devel-rge-no_1pt`
 
 
 * CMake, LLVM, BLAS, GMP, LIBXML2:
@@ -117,7 +116,7 @@ Control the flags use for building the packages.
    and set the QphiX isa.
 
 --std=c++20|c++23   
-   Append the given flag to CXXFLAGS; --std=c++20 the default.
+   Append the given flag to CXXFLAGS; --std=c++20 is the default.
 
 --autoflags=no
    If given, CFLAGS, CXXFLAGS, and LDFLAGS are not modified by the options -g, -O,
@@ -172,6 +171,7 @@ use_march=""
 use_master="nop"
 use_next="nop"
 use_restructure="nop"
+use_rge_no_1pt="nop"
 use_superb="nop"
 use_qdpjit=""
 use_superb_next="nop"
@@ -269,7 +269,8 @@ for (( i=1 ; i<=n ; ++i )); do
 	--master) use_master="yes";;
 	--superb) use_superb="yes";use_superb_next="nop";;
 	--superb-next) use_superb="yes";use_superb_next="yes";;
-	--next) use_superb="yes";use_superb_next="yes";;
+	--next) use_superb="yes";use_superb_next="yes";use_next="yes";;
+	--rge-no-1pt) use_superb="yes";use_rge_no_1pt="yes";;
 	--avx) use_march="avx";;
 	--avx2) use_march="avx2";;
 	--avx512) use_march="avx512";;
@@ -699,13 +700,12 @@ if [ $use_arch == cpu ]; then
 	[ x${mgproto}x != xx ] && primme="${primme:-update}"
 else
 	[ $use_mg == yes -a x${chroma}x != xx ] && quda="${quda:-update}"
-	#[ $use_mg == yes -a $use_next == yes ] && mugiq="${mugiq:-update}"
 fi
 [ x${quda}x != xx ] && cpm="${cpm:-update}"
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ x${chroma}x != xx -a $use_superb == yes ] && superbblas="${superbblas:-update}"
 [ x${chroma}x != xx -a $use_superb_next == yes ] && redstardl="${redstardl:-update}"
-[ x${chroma}x != xx -a $use_next == yes ] && boost="${boost:-update}"
+[ x${chroma}x != xx -a $use_rge_no_1pt == yes ] && redstardl="${redstardl:-update}"
 [ x${chroma}x != xx -a x${superbblas}x != xx ] && primme="${primme:-update}"
 [ x${mgproto}x != xx ] && primme="${primme:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
@@ -1049,7 +1049,6 @@ fi
 if [ x${quda}x != xx ]; then
 	quda_src="quda"
 	cpm_src="cpm"
-	#[ $use_next == yes ] && quda_src="quda-mugiq"
 fi
 if [ x${mugiq}x != xx ]; then
 	mugiq_src="mugiq"
@@ -1062,8 +1061,8 @@ if [ x${mgproto}x != xx ]; then
 fi
 if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
-	if [ $use_next == yes ]; then
-		chroma_src="chroma-fs-sp"
+	if [ $use_rge_no_1pt == yes ]; then
+		chroma_src="chroma-rge-no-1pt"
 	elif [ $use_restructure == yes ]; then
 		chroma_src="chroma-restructure"
 	elif [ $use_superb_next == yes ]; then
@@ -1108,6 +1107,7 @@ if [ x${adat}x != xx ]; then
 fi
 if [ x${redstardl}x != xx ]; then
 	redstardl_src="redstardl"
+	[ $use_rge_no_1pt == yes ] && redstardl_src="redstardl-rge-no-1pt"
 fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
@@ -1239,6 +1239,7 @@ chroma                 https://github.com/JeffersonLab/chroma          devel
 chroma-sp              https://github.com/JeffersonLab/chroma          eloy/mgproton
 chroma-restructure     https://github.com/JeffersonLab/chroma          restructure
 chroma-fs-sp           https://github.com/twLQCD/chroma.git            travis/mgproton-progress-blocking-fs
+chroma-rge-no-1pt      https://github.com/JeffersonLab/chroma          devel-rge-no_1pt
 chroma                 https://github.com/JeffersonLab/chroma          devel
 qphix                  https://github.com/JeffersonLab/qphix           devel
 mgproto                https://github.com/JeffersonLab/mg_proto        devel
@@ -1252,6 +1253,7 @@ redstar-master         https://github.com/JeffersonLab/redstar         master
 adat                   https://github.com/JeffersonLab/adat            devel
 adat-master            https://github.com/JeffersonLab/adat            master
 redstardl              https://github.com/JeffersonLab/adat            eloy/redstar-datalib
+redstardl-rge-no-1pt   https://github.com/JeffersonLab/adat            devel-rge-no_1pt
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-master        https://github.com/JeffersonLab/colorvec        master
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
@@ -2524,7 +2526,6 @@ if [ x${chroma}x != xx ]; then
 			[ x${primme}x != xx ] && chroma_extra+=" --with-primme=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 			[ x${redstardl}x != xx ] && chroma_extra+=" --with-redstar-datalib=${installdir}/${redstardl_install}"
-			[ $use_next == yes -a x${boost}x != xx ] && chroma_extra+=" --with-boost=${srcdir}/${boost_install}"
 			run ${sdir}/configure \
 				--prefix=${idir} \
 				--with-qdp=${installdir}/${qdp_install} \
@@ -2543,7 +2544,6 @@ if [ x${chroma}x != xx ]; then
 			[ x${primme}x != xx ] && chroma_extra+=" -DChroma_ENABLE_PRIMME=ON -DPRIMME_DIR=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" -DChroma_ENABLE_SUPERBBLAS=ON -DSUPERBBLAS_DIR=${installdir}/${superbblas_install}"
 			[ x${redstardl}x != xx ] && chroma_extra+=" -DChroma_ENABLE_REDSTAR_DATALIB=ON -DREDSTAR_DATALIB_DIR=${installdir}/${redstardl_install}"
-			[ ${use_next} == yes -a x${boost}x != xx ] && chroma_extra+=" -DChroma_ENABLE_BOOST=ON -DBOOST_DIR=${srcdir}/${boost_install}"
 			[ ${use_arch} == hip ] && chroma_extra+=" -DChroma_ENABLE_OPENMP=OFF -DAMDGPU_TARGETS=$AMDGPU_TARGETS -DGPU_TARGETS=$AMDGPU_TARGETS -DROCM_PATH=`$HIPCONFIG -R`"
 			[ ${use_arch} == cuda ]  && chroma_extra+=" -DChroma_ENABLE_CUDA=ON"
 			[ x${llvm} != x ] && chroma_extra+=" -DLLVM_DIR=${installdir}/${llvm_install}/lib/cmake/llvm"
