@@ -9,7 +9,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
-           [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
+           [--blas=accelerate|--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|...|-zen5] [--autoflags=no] \\
            [--std=c++11|--std=c++14|--std=c++17|--std=c++20]                              \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
@@ -64,7 +64,7 @@ Some packages have special optional features.
 * `--mg`:
    Install multigrid extension of chroma; it isn't installed by default.
 * `--superb`:
-   Install the superbblas extensions of chroma; it isn't installed by default.
+   Enable superbblas in Chroma and in ADAT for Redstar; disabled by default.
 * `--master`:
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
@@ -91,7 +91,9 @@ Some packages have special optional features.
    downloads a recent version. By default, it detects the thrust version available, and
    download cub and thrust if it is not.
 
-* `--blas=[openblas|openblas-system|atlas-system|mkl]`:
+* `--blas=[accelerate|openblas|openblas-system|atlas-system|mkl]`:
+   Use Apple's Accelerate BLAS/LAPACK framework with 'accelerate' (macOS only).
+   On macOS this is the default unless BLAS flags, MKLROOT, or OpenBLAS are given.
    Build OpenBLAS if 'openblas' is given, or use the system OpenBLAS, ATLAS, or MKL if
    'openblas-system', 'atlas-system', 'mkl' is given, respectively. If using MKL, plase
    set the environ variable MKLROOT. By default, it detects if there are flags in LDFLAGS
@@ -322,3 +324,72 @@ module load CMake
 module load Python
 ./chromaform --mg --superb chroma
 ```
+
+## macOS with Accelerate and OpenMP
+
+Install Xcode command-line tools and the build dependencies with Homebrew:
+
+```sh
+xcode-select --install
+brew install libomp gcc open-mpi autoconf automake libtool pkg-config cmake gmp libxml2 wget
+```
+
+Use Apple clang with Homebrew's libomp for application threading and Accelerate
+for BLAS/LAPACK. Use `--superb` (two leading hyphens) for both builds:
+
+```sh
+# Redstar and its ADAT superbblas integration, without MPI
+./chromaform redstar --superb --blas=accelerate --openmp=yes --mpi=no \
+  CC=clang CXX=clang++ FC=gfortran MAKE_JN=4
+
+# Chroma with superbblas and MPI; keep its installation separate
+./chromaform chroma --superb --blas=accelerate --openmp=yes --mpi=yes \
+  --build-dir=build-chroma --install-dir=install-chroma \
+  CC=mpicc CXX=mpicxx FC=gfortran MAKE_JN=4
+```
+
+For `CORR_SUPERB`, use `--superb-next` instead of plain `--superb`:
+
+```sh
+./chromaform chroma --superb-next --blas=accelerate --openmp=yes --mpi=yes \
+  --build-dir=build-corr --install-dir=install-corr \
+  CC=mpicc CXX=mpicxx FC=gfortran MAKE_JN=4
+```
+
+This additionally selects `redstardl` and passes `--with-redstar-datalib` to
+Chroma. Plain `--superb` enables SUPERB kernels but does not select that
+CORR_SUPERB dependency automatically. Selecting the dependency does not imply
+that all correlation-graph runtime paths have passed numerical validation.
+
+The MPI wrappers must use Apple clang too (`mpicxx --showme:command`).
+`--openmp=yes` requires libomp; the script searches pkg-config and the standard
+Apple Silicon and Intel Homebrew prefixes. With `--autoflags=no`, supply compiler
+and linker flags yourself. Accelerate uses the existing 32-bit BLAS integer ABI;
+do not add `ACCELERATE_LAPACK_ILP64` to these builds.
+
+Set the runtime thread count separately from `MAKE_JN`, which controls compilation:
+
+```sh
+export OMP_NUM_THREADS=4
+export VECLIB_MAXIMUM_THREADS=1
+```
+
+This lets OpenMP parallelize the application while limiting nested Accelerate
+threading. For BLAS-heavy workloads, benchmark a larger Accelerate thread count.
+Use fresh build/install directories when switching BLAS implementations or MPI
+settings: Chromaform can reuse existing installations without reconfiguring them.
+
+Run the configuration regressions and native superbblas numerical/linkage check with:
+
+```sh
+python3 -m unittest discover -s tests -v
+bash tests/macos-accelerate-smoke.sh /tmp/chromaform-accelerate-test
+```
+
+Use a fresh scratch directory for the smoke test to verify a clean library build.
+
+The macOS build preparation replaces superbblas's GNU-only source splitter and
+fixes the current Chroma devel fallback-variable typo in `inline_cmd.cc`.
+Both complete builds were verified on Apple Silicon with Accelerate and libomp;
+the superbblas smoke test also checks a four-thread OpenMP team and numerical
+BLAS/LAPACK operations. Intel macOS was not tested in this verification.
