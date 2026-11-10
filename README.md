@@ -136,6 +136,49 @@ To build serial ADAT and datalib alone:
 ./chromaform --devel-datalib-reorg --mpi=no --blas=openblas adat
 ```
 
+
+### JLab 24s: GNU compilers and Open MPI
+
+Use one consistent GNU toolchain (GCC, G++, and GFortran) and a matching Open MPI
+installation. JLab documents the `mpi/openmpi-x86_64` module in its
+[environment-module guidance](https://www.jlab.org/lqcd/software/modules).
+Check the available compiler versions on the machine; prefer GCC 13 or newer
+when available, and keep the same compiler version for both builds. Avoid
+mixing GNU and Intel compiler/OpenMP runtime environments.
+
+```bash
+module load mpi/openmpi-x86_64
+
+module list
+mpicc --showme:command
+mpicxx --showme:command
+mpicxx --version
+gfortran --version
+```
+
+Verify that the MPI wrappers use the intended GCC/G++ toolchain and that
+`gcc`, `g++`, and `gfortran` on your PATH belong to that same toolchain. The module
+name alone does not establish which compiler version is selected.
+
+Build MPI Chroma with explicit compiler settings:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=yes --blas=openblas \
+  chroma CC=mpicc CXX=mpicxx FC=gfortran
+```
+
+Build the serial Redstar chain with the corresponding ordinary compilers:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas \
+  redstar CC=gcc CXX=g++ FC=gfortran
+```
+
+Explicit settings avoid inheriting an unintended `CC`, `CXX`, or `FC` from the
+shell. `FC=gfortran` selects the Fortran compiler for OpenBLAS. Datalib uses the
+underlying non-MPI compiler in both builds; Chroma does not build ADAT. Keep the
+compiler and library environment available when running the installed programs.
+
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
    which implementation to use.
