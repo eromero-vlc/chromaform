@@ -70,14 +70,32 @@ Some packages have special optional features.
    branch is installed by default otherwise.
 * `--devel-datalib-reorg`:
    Install `rge/devel-datalib-reorg` branches of datalib, adat, colorvec, QDP++, and chroma.
-   Enables MPI and SuperbBLAS, configures QDP++ as `parscalar` and QMP with
+   Enables SuperbBLAS. Chroma uses MPI, with QDP++ as `parscalar` and QMP with
    `--with-qmp-comms-type=MPI`, and builds standalone datalib (with FILEDB) before ADAT and Chroma.
    Chroma enables `CORR_SUPERB` with `--with-datalib` and `--with-superbblas`.
    Building `chroma` alone does not build ADAT. Colorvec builds against ADAT, which
    uses the same standalone datalib installation.
-   The MPI QMP and SuperbBLAS installs use separate directory names, so existing serial
-   installs are not reused. Datalib itself retains its serial I/O API.
+   MPI and serial package variants use separate installation directories. Datalib
+   is always built with the underlying non-MPI compiler and retains its serial I/O API.
    Chroma uses this branch's Autotools interface for standalone datalib.
+
+* `--adat-mpi=yes|no`:
+   Controls ADAT's MPI routines separately from Chroma and Colorvec. ADAT defaults
+   to `no` with `--devel-datalib-reorg`; outside this stack it follows `--mpi` unless
+   overridden. `--adat-mpi=yes` selects the MPI toolchain and is incompatible with
+   `--mpi=no`. Serial ADAT uses the underlying non-MPI compiler, even when Chroma
+   or Colorvec is built with MPI.
+
+Datalib is shared by ADAT and Chroma and never needs an MPI compiler. Chromaform
+queries Open MPI wrappers with `--showme:command`, or MPICH/Intel MPI wrappers
+with `-show`, and uses the reported compiler without the wrapper's MPI flags.
+For example, `CXX=mpicxx` may resolve to `g++`, `icpx`, or `clang++`, depending on
+the loaded MPI environment. Use `SERIAL_CC=/path/to/cc SERIAL_CXX=/path/to/c++`
+for wrappers that cannot report a single compiler. These compilers must match
+the MPI toolchain's C++ ABI and OpenMP runtime. MPI-specific SuperbBLAS defines
+are removed only in serial package builds; Chroma retains its MPI settings.
+Compiler discovery and scope-isolation checks can be run with
+`bash tests/compiler-selection.sh`.
 
 Build Chroma separately with MPI and OpenBLAS:
 
@@ -98,6 +116,19 @@ Build Colorvec separately with MPI and OpenBLAS:
 This builds ADAT and standalone datalib as needed, then builds Colorvec against
 that ADAT installation. Both commands use the `rge/devel-datalib-reorg` branches
 of the relevant packages listed above.
+
+The Colorvec command leaves ADAT's optional MPI routines disabled. To enable
+those routines too, add `--adat-mpi=yes`:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=yes --adat-mpi=yes --blas=openblas colorvec
+```
+
+To build serial ADAT and datalib alone, without selecting an MPI toolchain:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=no --adat-mpi=no --blas=openblas adat
+```
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
