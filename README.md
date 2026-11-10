@@ -16,7 +16,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
            [ncurses] [libfuse3] [anarchofs]                                               \\
            [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
-           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
+           [datalib] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
 ```
@@ -68,8 +68,118 @@ Some packages have special optional features.
 * `--master`:
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
-* `--rge-no-1pt`:
-   Install the adat and chroma branch `devel-rge-no_1pt`
+* `--devel-datalib-reorg`:
+   Install `rge/devel-datalib-reorg` branches of datalib, adat, colorvec, redstar, QDP++, and chroma.
+   Enables SuperbBLAS. Chroma uses MPI, with QDP++ as `parscalar` and QMP with
+   `--with-qmp-comms-type=MPI`, and builds standalone datalib (with FILEDB) before ADAT and Chroma.
+   Chroma enables `CORR_SUPERB` with `--with-datalib` and `--with-superbblas`.
+   Building `chroma` alone does not build ADAT. Colorvec builds against ADAT, which
+   uses the same standalone datalib installation.
+   MPI and serial package variants use separate installation directories. Datalib
+   is always built with the underlying non-MPI compiler and retains its serial I/O API.
+   Chroma uses this branch's Autotools interface for standalone datalib.
+   The reorganization branch takes precedence over other branch-selection options
+   for these six packages. QDP means QDP++ (`--qdpjit=no`); QDP-JIT has no matching
+   reorganization branch, so selecting QDP-JIT for this stack is rejected.
+
+* `--mpi=yes|no`:
+   Controls optional MPI support in ADAT, Colorvec, and Redstar. The Redstar-chain
+   workflow documented below uses `--mpi=no`; MPI support remains available for
+   workflows that explicitly require it. Compiler selection is separate from
+   enabling MPI routines: choosing an MPI wrapper as `CXX` alone does not enable
+   them. Datalib always builds serially, regardless of this option. Reorganized
+   Chroma requires MPI and does not depend on ADAT.
+
+Datalib is shared by ADAT and Chroma and never needs an MPI compiler. Chromaform
+queries Open MPI wrappers with `--showme:command`, or MPICH/Intel MPI wrappers
+with `-show`, and uses the reported compiler without the wrapper's MPI flags.
+For example, `CXX=mpicxx` may resolve to `g++`, `icpx`, or `clang++`, depending on
+the loaded MPI environment. Use `SERIAL_CC=/path/to/cc SERIAL_CXX=/path/to/c++`
+for wrappers that cannot report a single compiler. These compilers must match
+the MPI toolchain's C++ ABI and OpenMP runtime. MPI-specific SuperbBLAS defines
+are removed only in serial package builds; Chroma retains its MPI settings.
+Compiler discovery and scope-isolation checks can be run with
+`bash tests/compiler-selection.sh`. Source and branch selection can be checked
+without downloading or building with `bash tests/branch-selection.sh`. Macro-guard
+and portable source-preparation checks use `bash tests/chroma-mpi-guards.sh` and
+`bash tests/source-preparation.sh`, respectively; neither rebuilds any packages.
+
+Build Chroma separately with MPI and OpenBLAS:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=yes --blas=openblas chroma
+```
+
+This builds standalone datalib as needed and enables Chroma's `CORR_SUPERB` task
+with `--with-datalib` and `--with-superbblas`. It does not build or depend on ADAT.
+QDP++ uses `parscalar`, and QMP uses MPI communication.
+
+Build Colorvec separately as part of the serial Redstar chain, using OpenBLAS:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas colorvec
+```
+
+This builds serial ADAT and standalone datalib as needed, then builds serial
+Colorvec against that ADAT installation. The Chroma and Colorvec commands use
+`rge/devel-datalib-reorg` for the relevant packages listed above.
+
+Build serial Redstar, Colorvec, and ADAT with OpenBLAS. Redstar also uses
+`rge/devel-datalib-reorg`, with a separate source directory from its default
+`devel` checkout:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas redstar
+```
+
+To build serial ADAT and datalib alone:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas adat
+```
+
+
+### JLab 24s: GNU compilers and Open MPI
+
+Use one consistent GNU toolchain (GCC, G++, and GFortran) and a matching Open MPI
+installation. JLab documents the `mpi/openmpi-x86_64` module in its
+[environment-module guidance](https://www.jlab.org/lqcd/software/modules).
+Check the available compiler versions on the machine; prefer GCC 13 or newer
+when available, and keep the same compiler version for both builds. Avoid
+mixing GNU and Intel compiler/OpenMP runtime environments.
+
+```bash
+module load mpi/openmpi-x86_64
+
+module list
+mpicc --showme:command
+mpicxx --showme:command
+mpicxx --version
+gfortran --version
+```
+
+Verify that the MPI wrappers use the intended GCC/G++ toolchain and that
+`gcc`, `g++`, and `gfortran` on your PATH belong to that same toolchain. The module
+name alone does not establish which compiler version is selected.
+
+Build MPI Chroma with explicit compiler settings:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=yes --blas=openblas \
+  chroma CC=mpicc CXX=mpicxx FC=gfortran
+```
+
+Build the serial Redstar chain with the corresponding ordinary compilers:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas \
+  redstar CC=gcc CXX=g++ FC=gfortran
+```
+
+Explicit settings avoid inheriting an unintended `CC`, `CXX`, or `FC` from the
+shell. `FC=gfortran` selects the Fortran compiler for OpenBLAS. Datalib uses the
+underlying non-MPI compiler in both builds; Chroma does not build ADAT. Keep the
+compiler and library environment available when running the installed programs.
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
