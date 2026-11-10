@@ -495,26 +495,76 @@ use_serial_compilers() {
 # Preserve an early command-line MPI definition when Chroma's headers define it too.
 # Keep this in chromaform so fresh source checkouts receive the same fix.
 guard_chroma_mpi_defines() {
-	"$PYTHON" - "$1" <<'PY_CHROMA_MPI'
-from pathlib import Path
-import re
-import sys
-root = Path(sys.argv[1])
-define = re.compile(r"^[ \t]*#[ \t]*define[ \t]+SUPERBBLAS_USE_MPI[ \t]*(?://[^\n]*)?$")
-guard = re.compile(r"^[ \t]*#[ \t]*ifndef[ \t]+SUPERBBLAS_USE_MPI[ \t]*$")
-for relative in ("lib/meas/inline/hadron/inline_corr_superb_w.cc", "lib/util/ferm/superb_contractions.h"):
-    path = root / relative
-    original = path.read_text()
-    output = []
-    for line in original.splitlines(keepends=True):
-        if define.fullmatch(line.rstrip("\r\n")) and not (output and guard.fullmatch(output[-1].rstrip("\r\n"))):
-            output.extend(("#ifndef SUPERBBLAS_USE_MPI\n", line, "#endif\n"))
-        else:
-            output.append(line)
-    updated = "".join(output)
-    if updated != original:
-        path.write_text(updated)
-PY_CHROMA_MPI
+	local root="$1" relative file prepared
+	for relative in lib/meas/inline/hadron/inline_corr_superb_w.cc lib/util/ferm/superb_contractions.h; do
+		file="$root/$relative"
+		prepared="$(mktemp "${file}.XXXXXX")" || return 1
+		if ! awk '
+{
+    line = $0
+    sub(/\r$/, "", line)
+    if (line ~ /^[ \t]*#[ \t]*define[ \t]+SUPERBBLAS_USE_MPI[ \t]*(\/\/.*)?$/ && previous !~ /^[ \t]*#[ \t]*ifndef[ \t]+SUPERBBLAS_USE_MPI[ \t]*$/) {
+        print "#ifndef SUPERBBLAS_USE_MPI"
+        print
+        print "#endif"
+        previous = "#endif"
+    } else {
+        print
+        previous = line
+    }
+}
+' "$file" > "$prepared"; then
+			rm -f "$prepared"
+			return 1
+		fi
+		if ! cmp -s "$file" "$prepared"; then
+			cat "$prepared" > "$file" || { rm -f "$prepared"; return 1; }
+		fi
+		rm -f "$prepared"
+	done
+}
+
+# Replace GNU split's line-balanced chunks only in the copied SuperbBLAS build.
+prepare_superbblas_split() {
+	local root="$1" prepared
+	cat > "$root/src/split-source.awk" <<'AWK_SPLIT'
+BEGIN {
+    for (i = 0; i < 10; ++i) {
+        file = prefix i
+        printf "%s", "" > file
+        close(file)
+    }
+}
+NR == FNR { total++; next }
+{
+    file = prefix int((10 * FNR - 1) / total)
+    printf "%s", $0 >> file
+    if (FNR < total || final_newline) printf "\n" >> file
+}
+AWK_SPLIT
+	cat > "$root/src/split-source.recipe" <<'MAKE_SPLIT'
+	awk -v prefix="$(LIB_SOURCE_STEM)_" -v final_newline=$$(if [ -z "$$(tail -c 1 "$<")" ]; then echo 1; else echo 0; fi) -f split-source.awk "$<" "$<"
+MAKE_SPLIT
+	prepared="$(mktemp "$root/src/Makefile.XXXXXX")" || return 1
+	if ! awk 'NR == FNR { recipe = $0; next }
+/^[ \t]*split -d -n l\/10 -a 1 / { print recipe; next }
+{ print }' "$root/src/split-source.recipe" "$root/src/Makefile" > "$prepared"; then
+		rm -f "$prepared"
+		return 1
+	fi
+	cat "$prepared" > "$root/src/Makefile" || { rm -f "$prepared"; return 1; }
+	rm -f "$prepared"
+}
+
+fix_hadron_cxxld() {
+	local file="$1" prepared
+	prepared="$(mktemp "${file}.XXXXXX")" || return 1
+	if ! sed 's/hadron_cxxld="@CXXLD@"/hadron_cxxld="@CXX@"/g' "$file" > "$prepared"; then
+		rm -f "$prepared"
+		return 1
+	fi
+	cat "$prepared" > "$file" || { rm -f "$prepared"; return 1; }
+	rm -f "$prepared"
 }
 
 # Add extra flags
@@ -2542,14 +2592,7 @@ if [ x${superbblas}x != xx ]; then
 		run cp -r ${srcdir}/${superbblas_src}/ $bdir
 		# BSD split lacks GNU's line-balanced chunk option. Patch only the build copy.
 		if [ "`uname -s`" == Darwin ]; then
-			"$PYTHON" - "$bdir/src/Makefile" <<'PY_SPLIT'
-import pathlib, sys
-p = pathlib.Path(sys.argv[1])
-s = p.read_text()
-s = s.replace('split -d -n l/10 -a 1 $< $(LIB_SOURCE_STEM)_',
-    "$(PYTHON) -c 'import pathlib,sys; lines=pathlib.Path(sys.argv[1]).read_bytes().splitlines(True); [pathlib.Path(sys.argv[2]+str(i)).write_bytes(bytes().join(lines[len(lines)*i//10:len(lines)*(i+1)//10])) for i in range(10)]' $< $(LIB_SOURCE_STEM)_")
-p.write_text(s)
-PY_SPLIT
+			run prepare_superbblas_split "$bdir"
 		fi
 		make_action="install_cpu"
 		if [ $use_arch == cuda ]; then
@@ -2823,7 +2866,7 @@ if [ x${hadron}x != xx ]; then
 			[ $use_opt == opt ] && hadron_extra+=" HIPCCFLAGS=-O3"
 			;;
 		esac
-		run "$PYTHON" -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); p.write_text(p.read_text().replace("hadron_cxxld=\"@CXXLD@\"", "hadron_cxxld=\"@CXX@\""))' "${sdir}/hadron-config.in"
+		run fix_hadron_cxxld "${sdir}/hadron-config.in"
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"

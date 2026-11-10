@@ -100,7 +100,9 @@ the MPI toolchain's C++ ABI and OpenMP runtime. MPI-specific SuperbBLAS defines
 are removed only in serial package builds; Chroma retains its MPI settings.
 Compiler discovery and scope-isolation checks can be run with
 `bash tests/compiler-selection.sh`. Source and branch selection can be checked
-without downloading or building with `python3 tests/branch-selection.py`.
+without downloading or building with `bash tests/branch-selection.sh`. Macro-guard
+and portable source-preparation checks use `bash tests/chroma-mpi-guards.sh` and
+`bash tests/source-preparation.sh`, respectively; neither rebuilds any packages.
 
 Build Chroma separately with MPI and OpenBLAS:
 
