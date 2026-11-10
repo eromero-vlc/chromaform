@@ -64,8 +64,8 @@ Some packages have special optional features.
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
 --devel-datalib-reorg
-   Install rge/devel-datalib-reorg branches of datalib, adat, colorvec, QDP++,
-   and chroma, building standalone datalib before its consumers. Enables --superb;
+   Install rge/devel-datalib-reorg branches of datalib, adat, colorvec, redstar,
+   QDP++, and chroma, building standalone datalib before its consumers. Enables --superb;
    Chroma uses MPI; --mpi controls ADAT, Colorvec, and Redstar.
 
 --mpi=yes|no
@@ -1206,6 +1206,7 @@ fi
 if [ x${redstar}x != xx ]; then
 	redstar_src="redstar"
 	[ $use_master == yes ] && redstar_src="redstar-master"
+	[ $use_devel_datalib_reorg == yes ] && redstar_src="redstar-devel-datalib-reorg"
 fi
 if [ x${laplace_eigs}x != xx ]; then
 	laplace_eigs_src="laplace_eigs"
@@ -1331,6 +1332,7 @@ hadron-master          https://github.com/JeffersonLab/hadron          master
 tensor                 https://github.com/JeffersonLab/tensor          master
 redstar                https://github.com/JeffersonLab/redstar         devel
 redstar-master         https://github.com/JeffersonLab/redstar         master
+redstar-devel-datalib-reorg https://github.com/JeffersonLab/redstar rge/devel-datalib-reorg
 adat                   https://github.com/JeffersonLab/adat            devel
 adat-master            https://github.com/JeffersonLab/adat            master
 redstardl              https://github.com/JeffersonLab/adat            eloy/redstar-datalib

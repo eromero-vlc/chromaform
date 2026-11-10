@@ -69,7 +69,7 @@ Some packages have special optional features.
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
 * `--devel-datalib-reorg`:
-   Install `rge/devel-datalib-reorg` branches of datalib, adat, colorvec, QDP++, and chroma.
+   Install `rge/devel-datalib-reorg` branches of datalib, adat, colorvec, redstar, QDP++, and chroma.
    Enables SuperbBLAS. Chroma uses MPI, with QDP++ as `parscalar` and QMP with
    `--with-qmp-comms-type=MPI`, and builds standalone datalib (with FILEDB) before ADAT and Chroma.
    Chroma enables `CORR_SUPERB` with `--with-datalib` and `--with-superbblas`.
@@ -120,7 +120,9 @@ of the relevant packages listed above.
 The Colorvec command enables MPI for both Colorvec and ADAT; datalib stays serial.
 To build serial Colorvec and ADAT, use `--mpi=no` instead.
 
-Build serial Redstar, Colorvec, and ADAT with OpenBLAS:
+Build serial Redstar, Colorvec, and ADAT with OpenBLAS. Redstar also uses
+`rge/devel-datalib-reorg`, with a separate source directory from its default
+`devel` checkout:
 
 ```bash
 ./chromaform --devel-datalib-reorg --mpi=no --blas=openblas redstar
