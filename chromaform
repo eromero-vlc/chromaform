@@ -492,6 +492,31 @@ use_serial_compilers() {
 	info "Serial package compilers: CC=$CC CXX=$CXX"
 }
 
+# Preserve an early command-line MPI definition when Chroma's headers define it too.
+# Keep this in chromaform so fresh source checkouts receive the same fix.
+guard_chroma_mpi_defines() {
+	"$PYTHON" - "$1" <<'PY_CHROMA_MPI'
+from pathlib import Path
+import re
+import sys
+root = Path(sys.argv[1])
+define = re.compile(r"^[ \t]*#[ \t]*define[ \t]+SUPERBBLAS_USE_MPI[ \t]*(?://[^\n]*)?$")
+guard = re.compile(r"^[ \t]*#[ \t]*ifndef[ \t]+SUPERBBLAS_USE_MPI[ \t]*$")
+for relative in ("lib/meas/inline/hadron/inline_corr_superb_w.cc", "lib/util/ferm/superb_contractions.h"):
+    path = root / relative
+    original = path.read_text()
+    output = []
+    for line in original.splitlines(keepends=True):
+        if define.fullmatch(line.rstrip("\r\n")) and not (output and guard.fullmatch(output[-1].rstrip("\r\n"))):
+            output.extend(("#ifndef SUPERBBLAS_USE_MPI\n", line, "#endif\n"))
+        else:
+            output.append(line)
+    updated = "".join(output)
+    if updated != original:
+        path.write_text(updated)
+PY_CHROMA_MPI
+}
+
 # Add extra flags
 
 if [ x${use_std}x == xx ]; then
@@ -2662,6 +2687,9 @@ if [ x${chroma}x != xx ]; then
 	bdir="${builddir}/${chroma_install}"
 	idir="${installdir}/${chroma_install}"
 	info "Doing ${chroma} chroma; source=$sdir build=$bdir install=$idir"
+	if [ $use_devel_datalib_reorg == yes -a $do_cleaning == nop ]; then
+		run guard_chroma_mpi_defines "$sdir"
+	fi
 	if [ $do_cleaning == yes ]; then
 		[ ${chroma} == clean ] && rm -rf $sdir $bdir $idir
 	elif [ ${chroma} == install -o ! -d ${idir} ]; then
