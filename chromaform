@@ -18,7 +18,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
            [ncurses] [libfuse3] [anarchofs]                                               \\
            [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
-           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
+           [datalib] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
 
@@ -63,8 +63,9 @@ Some packages have special optional features.
 --master
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
---rge-no-1pt
-   Install the adat and chroma branch `devel-rge-no_1pt`
+--devel-datalib-reorg
+   Install rge/devel-datalib-reorg branches of datalib, adat, colorvec, QDP++,
+   and chroma, building standalone datalib before its consumers. Enables MPI and --superb.
 
 
 * CMake, LLVM, BLAS, GMP, LIBXML2:
@@ -171,7 +172,7 @@ use_march=""
 use_master="nop"
 use_next="nop"
 use_restructure="nop"
-use_rge_no_1pt="nop"
+use_devel_datalib_reorg="nop"
 use_superb="nop"
 use_qdpjit=""
 use_superb_next="nop"
@@ -270,7 +271,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--superb) use_superb="yes";use_superb_next="nop";;
 	--superb-next) use_superb="yes";use_superb_next="yes";;
 	--next) use_superb="yes";use_superb_next="yes";use_next="yes";;
-	--rge-no-1pt) use_superb="yes";use_rge_no_1pt="yes";;
+	--devel-datalib-reorg) use_superb="yes";use_devel_datalib_reorg="yes";;
 	--avx) use_march="avx";;
 	--avx2) use_march="avx2";;
 	--avx512) use_march="avx512";;
@@ -333,6 +334,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	mugiq) mugiq="$action";;
 	chroma) chroma="$action";;
 	laplace_eigs) laplace_eigs="$action";;
+	datalib) datalib="$action";;
 	adat) adat="$action";;
 	colorvec) colorvec="$action";;
 	tensor) tensor="$action";;
@@ -392,6 +394,15 @@ check_success() {
 	echo "Exit status $last_status"
 	[ $last_status -ne 0 ] && exit $last_status
 }
+
+# The reorganized stack uses MPI for Chroma, QDP++ and SuperbBLAS.
+if [ $use_devel_datalib_reorg == yes ]; then
+	if [ $use_mpi == nop ]; then
+		echo "Incompatible options: --devel-datalib-reorg requires MPI"
+		exit 1
+	fi
+	use_mpi="yes"
+fi
 
 # Set the default for use_mpi
 if [ ${use_mpi} == duno ] ; then
@@ -705,7 +716,12 @@ fi
 [ x${mugiq}x != xx ] && quda="${quda:-update}"
 [ x${chroma}x != xx -a $use_superb == yes ] && superbblas="${superbblas:-update}"
 [ x${chroma}x != xx -a $use_superb_next == yes ] && redstardl="${redstardl:-update}"
-[ x${chroma}x != xx -a $use_rge_no_1pt == yes ] && redstardl="${redstardl:-update}"
+if [ $use_devel_datalib_reorg == yes ]; then
+	[ x${chroma}${adat}${colorvec}${redstar}${redstardl}x != xx ] && datalib="${datalib:-update}"
+	# The former ADAT-backed redstardl target now uses standalone datalib.
+	[ x${redstardl}x != xx ] && datalib="$redstardl"
+	redstardl=""
+fi
 [ x${chroma}x != xx -a x${superbblas}x != xx ] && primme="${primme:-update}"
 [ x${mgproto}x != xx ] && primme="${primme:-update}"
 [ x${qphix}${mgproto}${quda}${chroma}${laplace_eigs}x != xx ] && qdp="${qdp:-update}"
@@ -744,7 +760,7 @@ if [ $use_thrust != thrust -a x${thrust}x != xx ]; then
 	exit 1
 fi
 [ x${qdp}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
-[ x${adat}${redstardl}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
+[ x${datalib}${adat}${redstardl}x != xx -a $use_libxml2 == libxml2 ] && libxml2="${libxml2:-update}"
 if [ $use_libxml2 != libxml2 -a x${libxml2}x != xx ]; then
 	echo "Incompatible options: --libxml2=system but also asking for compiling libxml2"
 	exit 1
@@ -1038,6 +1054,7 @@ if [ x${qmp}x != xx ]; then
 fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
+	[ $use_devel_datalib_reorg == yes ] && qdp_src="qdpxx-devel-datalib-reorg"
 	if [ $use_arch != cpu -a $use_qdpjit == yes ] ; then
 	       	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
@@ -1061,8 +1078,8 @@ if [ x${mgproto}x != xx ]; then
 fi
 if [ x${chroma}x != xx ]; then
 	chroma_src="chroma"
-	if [ $use_rge_no_1pt == yes ]; then
-		chroma_src="chroma-rge-no-1pt"
+	if [ $use_devel_datalib_reorg == yes ]; then
+		chroma_src="chroma-devel-datalib-reorg"
 	elif [ $use_restructure == yes ]; then
 		chroma_src="chroma-restructure"
 	elif [ $use_superb_next == yes ]; then
@@ -1101,17 +1118,21 @@ if [ x${superbblas}x != xx ]; then
 	superbblas_src="superbblas"
 	[ $use_superb_next == yes ] && superbblas_src="superbblas-sp"
 fi
+if [ x${datalib}x != xx ]; then
+	datalib_src="datalib-devel-datalib-reorg"
+fi
 if [ x${adat}x != xx ]; then
 	adat_src="adat"
 	[ $use_master == yes ] && adat_src="adat-master"
+	[ $use_devel_datalib_reorg == yes ] && adat_src="adat-devel-datalib-reorg"
 fi
 if [ x${redstardl}x != xx ]; then
 	redstardl_src="redstardl"
-	[ $use_rge_no_1pt == yes ] && redstardl_src="redstardl-rge-no-1pt"
 fi
 if [ x${colorvec}x != xx ]; then
 	colorvec_src="colorvec"
 	[ $use_master == yes ] && colorvec_src="colorvec-master"
+	[ $use_devel_datalib_reorg == yes ] && colorvec_src="colorvec-devel-datalib-reorg"
 fi
 if [ x${tensor}x != xx ]; then
 	tensor_src="tensor"
@@ -1204,6 +1225,7 @@ $cpm          $cpm_src
 $chroma       $chroma_src
 $laplace_eigs $laplace_eigs_src
 $redstardl    $redstardl_src
+$datalib      $datalib_src
 $adat         $adat_src
 $colorvec     $colorvec_src
 $tensor       $tensor_src
@@ -1239,7 +1261,7 @@ chroma                 https://github.com/JeffersonLab/chroma          devel
 chroma-sp              https://github.com/JeffersonLab/chroma          eloy/mgproton
 chroma-restructure     https://github.com/JeffersonLab/chroma          restructure
 chroma-fs-sp           https://github.com/twLQCD/chroma.git            travis/mgproton-progress-blocking-fs
-chroma-rge-no-1pt      https://github.com/JeffersonLab/chroma          devel-rge-no_1pt
+chroma-devel-datalib-reorg https://github.com/JeffersonLab/chroma rge/devel-datalib-reorg
 chroma                 https://github.com/JeffersonLab/chroma          devel
 qphix                  https://github.com/JeffersonLab/qphix           devel
 mgproto                https://github.com/JeffersonLab/mg_proto        devel
@@ -1253,7 +1275,10 @@ redstar-master         https://github.com/JeffersonLab/redstar         master
 adat                   https://github.com/JeffersonLab/adat            devel
 adat-master            https://github.com/JeffersonLab/adat            master
 redstardl              https://github.com/JeffersonLab/adat            eloy/redstar-datalib
-redstardl-rge-no-1pt   https://github.com/JeffersonLab/adat            devel-rge-no_1pt
+datalib-devel-datalib-reorg https://github.com/JeffersonLab/datalib rge/devel-datalib-reorg
+adat-devel-datalib-reorg https://github.com/JeffersonLab/adat rge/devel-datalib-reorg
+colorvec-devel-datalib-reorg https://github.com/JeffersonLab/colorvec rge/devel-datalib-reorg
+qdpxx-devel-datalib-reorg https://github.com/usqcd-software/qdpxx rge/devel-datalib-reorg
 colorvec               https://github.com/JeffersonLab/colorvec        devel
 colorvec-master        https://github.com/JeffersonLab/colorvec        master
 laplace_eigs           https://github.com/JeffersonLab/laplace_eigs    primme3
@@ -1310,8 +1335,8 @@ EOF
 		*gz) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.gz && tar xzf $tmp/d.gz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
 		*xz) mkdir $tmp/d && run wget --no-check-certificate -q "$repo" -O $tmp/d.xz && tar xJf $tmp/d.xz -C $tmp/d && mv $tmp/d/* $srcdir/$proj;;
 		*git*)
-			( GIT_ASKPASS=w git clone --recursive $repo $srcdir/$proj || GIT_ASKPASS=w git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} $srcdir/$proj ) && \
-				( cd $srcdir/$proj; git checkout ${branch} && git submodule update --recursive ) || run false # checkout a branch or a commit
+			( GIT_ASKPASS=w git -c url.https://github.com/.insteadOf=git@github.com: clone --recursive $repo $srcdir/$proj || GIT_ASKPASS=w git clone --recursive ${repo/https:\/\/github.com\//git@github.com:} $srcdir/$proj ) && \
+				( cd $srcdir/$proj; git checkout ${branch} && git -c url.https://github.com/.insteadOf=git@github.com: submodule update --init --recursive ) || run false # checkout a branch or a commit
 			;;
 		*) echo "Don't know how to download $repo"; exit 1;;
 		esac
@@ -1814,6 +1839,13 @@ if [ x${tensor}x != xx ]; then
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		pushd $bdir
+		# Honor the selected backend instead of Tensor's macOS Accelerate autodetection.
+		case $use_blas in
+		openblas) tensor_extra_opts+=" --with-openblas=${installdir}/${openblas_install}" ;;
+		openblas-system) tensor_extra_opts+=" --with-backend=openblas" ;;
+		atlas-system) tensor_extra_opts+=" --with-backend=atlas" ;;
+		mkl-system) tensor_extra_opts+=" --with-backend=mkl" ;;
+		esac
 		case "`detect_compiler`" in
 		icc) run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts CC=icc CXX=icpc ;;
 		*)   run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts F77=$FC ;;
@@ -1979,8 +2011,9 @@ fi
 if [ x${qmp}x != xx ]; then
 	qmp_install="qmp"
 	use_qmp_cmake="nop"
-	[ ${qdp_src} != qdpxx -o x${quda}x != xx ] && use_qmp_cmake="yes"
+	[ $use_qdpjit == yes -o x${quda}x != xx ] && use_qmp_cmake="yes"
 	[ ${use_qmp_cmake} == yes ] && qmp_install="qmp-cmake"
+	[ $use_devel_datalib_reorg == yes ] && qmp_install+="-mpi"
 	sdir="${srcdir}/${qmp_src}"
 	bdir="${builddir}/${qmp_install}"
 	idir="${installdir}/${qmp_install}"
@@ -1991,7 +2024,7 @@ if [ x${qmp}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ ${qmp_install} == qmp ]; then
+		if [ ${use_qmp_cmake} == nop ]; then
 			( cd $sdir && run autoreconf -fi )
 			run ${sdir}/configure --prefix=${idir} --with-qmp-comms-type=MPI --with-qmp-comms-cflags="" --with-qmp-comms-ldflags="" --with-qmp-comms-libs=""
 		else
@@ -2009,6 +2042,13 @@ if [ x${qmp}x != xx ]; then
 		fi
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
+	fi
+fi
+
+if [ $use_devel_datalib_reorg == yes -a $do_cleaning == nop -a x${qmp}x != xx ]; then
+	if [ "`"${installdir}/${qmp_install}/bin/qmp-config" --comms`" != MPI ]; then
+		echo "The datalib reorganization requires QMP comms=MPI"
+		exit 1
 	fi
 fi
 
@@ -2074,14 +2114,16 @@ if [ x${qdp}x != xx ]; then
 			run rm -rf $bdir $idir
 			run mkdir -p $bdir
 			pushd $bdir
-			if [ $qdp_src == qdpxx -a ${use_qdp_cmake} == nop ]; then
+			if [ ${use_qdp_cmake} == nop ]; then
+				qdp_filedb_flag="--enable-filedb"
+				[ $use_devel_datalib_reorg == yes ] && qdp_filedb_flag=""
 				( cd $sdir && run autoreconf -fi )
 				run ${sdir}/configure \
 					--prefix=${idir} \
         				--enable-Nd=$qdp_nd \
 				        --enable-parallel-arch=parscalar \
 					--enable-precision=${qdp_prec} \
-					--enable-filedb \
+					$qdp_filedb_flag \
 					--disable-generics \
 					--enable-parallel-io \
 					--enable-alignment=64 \
@@ -2116,6 +2158,13 @@ if [ x${qdp}x != xx ]; then
 export LD_LIBRARY_PATH="${installdir}/${qdp_install}/lib:\$LD_LIBRARY_PATH"
 EOF
 		fi
+	fi
+fi
+
+if [ $use_devel_datalib_reorg == yes -a $do_cleaning == nop -a x${qdp}x != xx -a $use_qdpjit != yes ]; then
+	if [ "`"${installdir}/${qdp_install}/bin/qdp++-config" --parallel-arch`" != parscalar ]; then
+		echo "The datalib reorganization requires QDP++ parallel-arch=parscalar"
+		exit 1
 	fi
 fi
 
@@ -2386,6 +2435,7 @@ if [ x${superbblas}x != xx ]; then
 	[ $use_arch == cuda ] && superbblas_install="superbblas-cuda"
 	[ $use_arch == hip ] && superbblas_install="superbblas-hip"
 	[ $use_superb_next == yes ] && superbblas_install+="-next"
+	[ $use_devel_datalib_reorg == yes ] && superbblas_install+="-mpi"
 	sdir="${srcdir}/${superbblas_src}"
 	bdir="${builddir}/${superbblas_install}"
 	idir="${installdir}/${superbblas_install}"
@@ -2395,6 +2445,17 @@ if [ x${superbblas}x != xx ]; then
 	elif [ ${superbblas} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${superbblas_src}/ $bdir
+		# BSD split lacks GNU's line-balanced chunk option. Patch only the build copy.
+		if [ "`uname -s`" == Darwin ]; then
+			"$PYTHON" - "$bdir/src/Makefile" <<'PY_SPLIT'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+s = p.read_text()
+s = s.replace('split -d -n l/10 -a 1 $< $(LIB_SOURCE_STEM)_',
+    "$(PYTHON) -c 'import pathlib,sys; lines=pathlib.Path(sys.argv[1]).read_bytes().splitlines(True); [pathlib.Path(sys.argv[2]+str(i)).write_bytes(bytes().join(lines[len(lines)*i//10:len(lines)*(i+1)//10])) for i in range(10)]' $< $(LIB_SOURCE_STEM)_")
+p.write_text(s)
+PY_SPLIT
+		fi
 		make_action="install_cpu"
 		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
@@ -2411,10 +2472,13 @@ if [ x${superbblas}x != xx ]; then
 		[ $use_blas == mkl-system ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MKL"
 		# Disable the XSIMD implementation for now, the nvidia compiler complains and it isn't used in production for now
 		#[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
+		[ $use_mpi == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_MPI -DSUPERBBLAS_USE_MPIIO"
 		CXXFLAGS_sb="${CXXFLAGS//--craype-append-opt=/} $sb_cxx_extra"
 		[ $use_arch != cpu ] && CXXFLAGS_sb="${CXXFLAGS_sb//-std=c++??/} -std=c++20"
-		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
+		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb" PYTHON="$PYTHON" SUPERBBLAS_WITH_MPI=$([ $use_mpi == yes ] && echo yes || echo no)
 	fi
+	# Consumers can include datalib/SuperbBLAS headers before local MPI macros.
+	[ $use_mpi == yes ] && CXXFLAGS+=" -DSUPERBBLAS_USE_MPI"
 	# Add flags to compile and link with HIP runtime and to link with clang openmp
 	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C | tr '\n' ' '` -I`$HIPCONFIG -R`/include"
 	[ $use_arch == hip ] && LIBS+=" -L`$HIPCONFIG -R`/lib -lrocsolver -lhipsparse -lhipblas -lrocblas -lamdhip64 -lomp"
@@ -2454,6 +2518,28 @@ if [ x${mgproto}x != xx ]; then
 		     ${sdir}
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
+	fi
+fi
+
+if [ x${datalib}x != xx ]; then
+	datalib_install="${datalib_src}"
+	sdir="${srcdir}/${datalib_src}"
+	bdir="${builddir}/${datalib_install}"
+	idir="${installdir}/${datalib_install}"
+	info "Doing ${datalib} datalib; source=$sdir build=$bdir install=$idir"
+	if [ $do_cleaning == yes ]; then
+		[ ${datalib} == clean ] && rm -rf $sdir $bdir $idir
+	elif [ ${datalib} == install -o ! -d ${idir} ]; then
+		( cd $sdir && run git submodule update --init --recursive && run autoreconf -fi )
+		run rm -rf $bdir $idir
+		run mkdir -p $bdir
+		(
+			cd $bdir
+			datalib_extra=""
+			[ $use_libxml2 == libxml2 ] && datalib_extra="--with-libxml2=${installdir}/${libxml2_install}"
+			OPENMP_LIBS="${OPENMP_LIBS:-$LIBS}" run ${sdir}/configure --prefix=${idir} --enable-openmp $datalib_extra
+			run ${MYMAKE} install -j $MAKE_JN
+		) || exit $?
 	fi
 fi
 
@@ -2498,6 +2584,7 @@ if [ x${chroma}x != xx ]; then
 	else
 		chroma_install="${chroma_src}-${quda_install}"
 	fi
+	[ x${datalib}x != xx ] && chroma_install+="-${datalib_install}"
 	[ x${redstardl}x != xx ] && chroma_install+="-${redstardl_install}"
 	[ x${redstardl}x == xx -a x${superbblas}x != xx ] && chroma_install+="-${superbblas_install}"
 	sdir="${srcdir}/${chroma_src}"
@@ -2510,8 +2597,11 @@ if [ x${chroma}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
-		if [ ${use_qdp_cmake} == nop ]; then
+		if [ ${use_qdp_cmake} == nop -o $use_devel_datalib_reorg == yes ]; then
 			( cd $sdir && run autoreconf -fi )
+			chroma_extra=""
+			[ x${quda}x != xx ] && chroma_extra+=" --with-quda=${installdir}/${quda_install}"
+			[ $use_qdpjit == yes ] && chroma_extra+=" --enable-jit-clover"
 			if [ x${mgproto}x != xx ]; then
 				chroma_extra="\
 			        	--with-qphix-solver=${installdir}/${qphix_install} \
@@ -2525,6 +2615,7 @@ if [ x${chroma}x != xx ]; then
 			[ ${use_arch} == cuda ] && chroma_extra+=" --with-cuda=${CUDADIR}"
 			[ x${primme}x != xx ] && chroma_extra+=" --with-primme=${installdir}/${primme_install}"
 			[ x${superbblas}x != xx ] && chroma_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
+			[ x${datalib}x != xx ] && chroma_extra+=" --with-datalib=${installdir}/${datalib_install}"
 			[ x${redstardl}x != xx ] && chroma_extra+=" --with-redstar-datalib=${installdir}/${redstardl_install}"
 			run ${sdir}/configure \
 				--prefix=${idir} \
@@ -2559,6 +2650,13 @@ if [ x${chroma}x != xx ]; then
 				${CMAKE_EXTRA_FLAGS} \
 				${sdir}
 		fi
+		if [ $use_devel_datalib_reorg == yes ]; then
+			grep -q '^#define BUILD_SB' lib/chroma_config_internal.h &&
+			grep -q '^#define BUILD_REDSTAR_DATALIB' lib/chroma_config_internal.h || {
+				echo "CORR_SUPERB requires BUILD_SB and BUILD_REDSTAR_DATALIB"
+				exit 1
+			}
+		fi
 		run ${MYMAKE} install -j $MAKE_JN
 		popd
 	fi
@@ -2579,6 +2677,7 @@ if [ x${adat}x != xx ]; then
 		run mkdir -p $bdir
 		pushd $bdir
 		adat_extra=""
+		[ $use_devel_datalib_reorg == yes ] && adat_extra+=" --with-datalib=${installdir}/${datalib_install}"
 		[ $use_superb == yes ] && adat_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 		[ $use_superb == yes -a $use_arch != cpu ] && adat_extra+=" --with-gpu"
 		[ $use_mpi == yes ] && adat_extra+=" --enable-mpi"
@@ -2620,7 +2719,7 @@ if [ x${hadron}x != xx ]; then
 			[ $use_opt == opt ] && hadron_extra+=" HIPCCFLAGS=-O3"
 			;;
 		esac
-		sed 's/hadron_cxxld="@CXXLD@"/hadron_cxxld="@CXX@"/' -i ${sdir}/hadron-config.in
+		run "$PYTHON" -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); p.write_text(p.read_text().replace("hadron_cxxld=\"@CXXLD@\"", "hadron_cxxld=\"@CXX@\""))' "${sdir}/hadron-config.in"
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"

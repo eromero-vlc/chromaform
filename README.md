@@ -16,7 +16,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
            [ncurses] [libfuse3] [anarchofs]                                               \\
            [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
-           [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
+           [datalib] [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
 ```
@@ -68,8 +68,36 @@ Some packages have special optional features.
 * `--master`:
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
-* `--rge-no-1pt`:
-   Install the adat and chroma branch `devel-rge-no_1pt`
+* `--devel-datalib-reorg`:
+   Install `rge/devel-datalib-reorg` branches of datalib, adat, colorvec, QDP++, and chroma.
+   Enables MPI and SuperbBLAS, configures QDP++ as `parscalar` and QMP with
+   `--with-qmp-comms-type=MPI`, and builds standalone datalib (with FILEDB) before ADAT and Chroma.
+   Chroma enables `CORR_SUPERB` with `--with-datalib` and `--with-superbblas`.
+   Building `chroma` alone does not build ADAT. Colorvec builds against ADAT, which
+   uses the same standalone datalib installation.
+   The MPI QMP and SuperbBLAS installs use separate directory names, so existing serial
+   installs are not reused. Datalib itself retains its serial I/O API.
+   Chroma uses this branch's Autotools interface for standalone datalib.
+
+Build Chroma separately with MPI and OpenBLAS:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=yes --blas=openblas chroma
+```
+
+This builds standalone datalib as needed and enables Chroma's `CORR_SUPERB` task
+with `--with-datalib` and `--with-superbblas`. It does not build or depend on ADAT.
+QDP++ uses `parscalar`, and QMP uses MPI communication.
+
+Build Colorvec separately with MPI and OpenBLAS:
+
+```bash
+./chromaform --devel-datalib-reorg --mpi=yes --blas=openblas colorvec
+```
+
+This builds ADAT and standalone datalib as needed, then builds Colorvec against
+that ADAT installation. Both commands use the `rge/devel-datalib-reorg` branches
+of the relevant packages listed above.
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
