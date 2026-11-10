@@ -78,6 +78,9 @@ Some packages have special optional features.
    MPI and serial package variants use separate installation directories. Datalib
    is always built with the underlying non-MPI compiler and retains its serial I/O API.
    Chroma uses this branch's Autotools interface for standalone datalib.
+   The reorganization branch takes precedence over other branch-selection options
+   for these six packages. QDP means QDP++ (`--qdpjit=no`); QDP-JIT has no matching
+   reorganization branch, so selecting QDP-JIT for this stack is rejected.
 
 * `--mpi=yes|no`:
    Controls MPI support consistently for ADAT, Colorvec, and Redstar. With
@@ -95,7 +98,8 @@ for wrappers that cannot report a single compiler. These compilers must match
 the MPI toolchain's C++ ABI and OpenMP runtime. MPI-specific SuperbBLAS defines
 are removed only in serial package builds; Chroma retains its MPI settings.
 Compiler discovery and scope-isolation checks can be run with
-`bash tests/compiler-selection.sh`.
+`bash tests/compiler-selection.sh`. Source and branch selection can be checked
+without downloading or building with `python3 tests/branch-selection.py`.
 
 Build Chroma separately with MPI and OpenBLAS:
 

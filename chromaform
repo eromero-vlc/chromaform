@@ -797,6 +797,12 @@ fi
 [ x${hadron}x != xx ] && tensor="${tensor:-update}"
 [ x${qdp}x != xx ] && qmp="${qmp:-update}"
 
+# QDP-JIT has no matching reorganization branch; never fall back to its devel branch.
+if [ $use_devel_datalib_reorg == yes -a x${qdp}x != xx -a $use_qdpjit == yes ]; then
+	echo "--devel-datalib-reorg requires QDP++ (--qdpjit=no); QDP-JIT has no matching reorganization branch"
+	exit 1
+fi
+
 
 [ $use_arch != cpu -a x${qdp}x != xx -a ${use_qdpjit} == yes -a $use_llvm == llvm ] && llvm="${llvm:-update}" && lld="${lld:-update}" && unwind="${unwind:-update}"
 [ x${tensor}${primme}${superbblas}${mgproto}${chroma}x != xx -a $use_blas == openblas ] && openblas="${openblas:-update}"
@@ -1113,8 +1119,9 @@ if [ x${qmp}x != xx ]; then
 fi
 if [ x${qdp}x != xx ]; then
 	qdp_src="qdpxx"
-	[ $use_devel_datalib_reorg == yes ] && qdp_src="qdpxx-devel-datalib-reorg"
-	if [ $use_arch != cpu -a $use_qdpjit == yes ] ; then
+	if [ $use_devel_datalib_reorg == yes ]; then
+		qdp_src="qdpxx-devel-datalib-reorg"
+	elif [ $use_arch != cpu -a $use_qdpjit == yes ] ; then
 	       	llvm_ver="`llvm-config --version`"
         	case $llvm_ver in
 		14*|15*|16*) qdp_src="qdp-jit-prev-llvm17" ;;
