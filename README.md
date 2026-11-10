@@ -79,12 +79,12 @@ Some packages have special optional features.
    is always built with the underlying non-MPI compiler and retains its serial I/O API.
    Chroma uses this branch's Autotools interface for standalone datalib.
 
-* `--adat-mpi=yes|no`:
-   Controls ADAT's MPI routines separately from Chroma and Colorvec. ADAT defaults
-   to `no` with `--devel-datalib-reorg`; outside this stack it follows `--mpi` unless
-   overridden. `--adat-mpi=yes` selects the MPI toolchain and is incompatible with
-   `--mpi=no`. Serial ADAT uses the underlying non-MPI compiler, even when Chroma
-   or Colorvec is built with MPI.
+* `--mpi=yes|no`:
+   Controls MPI support consistently for ADAT, Colorvec, and Redstar. With
+   `--mpi=yes`, they use the MPI toolchain and enable their MPI routines. With
+   `--mpi=no`, they build serially, using the underlying non-MPI compilers.
+   Datalib always builds serially, regardless of this option. Reorganized Chroma
+   requires MPI and does not depend on ADAT.
 
 Datalib is shared by ADAT and Chroma and never needs an MPI compiler. Chromaform
 queries Open MPI wrappers with `--showme:command`, or MPICH/Intel MPI wrappers
@@ -117,17 +117,19 @@ This builds ADAT and standalone datalib as needed, then builds Colorvec against
 that ADAT installation. Both commands use the `rge/devel-datalib-reorg` branches
 of the relevant packages listed above.
 
-The Colorvec command leaves ADAT's optional MPI routines disabled. To enable
-those routines too, add `--adat-mpi=yes`:
+The Colorvec command enables MPI for both Colorvec and ADAT; datalib stays serial.
+To build serial Colorvec and ADAT, use `--mpi=no` instead.
+
+Build serial Redstar, Colorvec, and ADAT with OpenBLAS:
 
 ```bash
-./chromaform --devel-datalib-reorg --mpi=yes --adat-mpi=yes --blas=openblas colorvec
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas redstar
 ```
 
-To build serial ADAT and datalib alone, without selecting an MPI toolchain:
+To build serial ADAT and datalib alone:
 
 ```bash
-./chromaform --devel-datalib-reorg --mpi=no --adat-mpi=no --blas=openblas adat
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas adat
 ```
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:

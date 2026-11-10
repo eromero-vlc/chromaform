@@ -66,13 +66,13 @@ Some packages have special optional features.
 --devel-datalib-reorg
    Install rge/devel-datalib-reorg branches of datalib, adat, colorvec, QDP++,
    and chroma, building standalone datalib before its consumers. Enables --superb;
-   Chroma uses MPI, while ADAT defaults to serial support.
+   Chroma uses MPI; --mpi controls ADAT, Colorvec, and Redstar.
 
---adat-mpi=yes|no
-   Enable or disable ADAT's MPI routines independently of Chroma. Defaults to no
-   with --devel-datalib-reorg; otherwise follows --mpi. Enabling requires MPI.
-   Standalone datalib always uses the underlying non-MPI compiler. SERIAL_CC and
-   SERIAL_CXX override compiler discovery; keep the same C++ and OpenMP runtimes.
+--mpi=yes|no
+   Enable or disable MPI for ADAT, Colorvec, and Redstar. Standalone datalib
+   always uses the underlying non-MPI compiler; reorganized Chroma requires MPI.
+   SERIAL_CC and SERIAL_CXX override serial compiler discovery; keep the same
+   C++ and OpenMP runtimes.
 
 
 * CMake, LLVM, BLAS, GMP, LIBXML2:
@@ -193,7 +193,6 @@ use_libfuse3=""
 use_tinfo=""
 use_cmake=""
 use_mpi="duno"
-use_adat_mpi=""
 use_openmp=""
 use_autoflags="yes"
 use_opt="opt"
@@ -306,8 +305,6 @@ for (( i=1 ; i<=n ; ++i )); do
 	--openmp=yes) use_openmp="yes";;
 	--mpi=no) use_mpi="nop";;
 	--mpi=yes) use_mpi="yes";;
-	--adat-mpi=no) use_adat_mpi="nop";;
-	--adat-mpi=yes) use_adat_mpi="yes";;
 	--gmp=build) use_gmp="gmp";;
 	gmp) gmp="$action"; use_gmp="gmp";;
 	--gmp=system) use_gmp="gmp-system";;
@@ -362,6 +359,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	openmpi) openmpi="$action";;
 	mvapich2) mvapich2="$action";;
 	cpm) cpm="$action";;
+	--*=*) echo "Sorry! Unsupported option '$arg'"; exit 1;;
 	*=*) export ${arg%%=*}="${arg#*=}";;
 	--help|-h) echo "$hlp_msg"; exit 0;;
 	*) echo "Sorry! Unsupported option '$arg'"; echo "$hlp_msg"; exit 1;;
@@ -413,14 +411,6 @@ if [ $use_devel_datalib_reorg == yes -a x${chroma}x != xx ]; then
 	fi
 	use_mpi="yes"
 fi
-if [ "$use_adat_mpi" == yes ]; then
-	if [ $use_mpi == nop ]; then
-		echo "Incompatible options: --adat-mpi=yes requires --mpi=yes"
-		exit 1
-	fi
-	use_mpi="yes"
-fi
-
 # Set the default for use_mpi
 if [ ${use_mpi} == duno ] ; then
 	if [ x${openmpi} != x -o x${mvapich2} ] || [ x${adat} == x -a x${colorvec} == x -a x${redstar} == x ] ; then
@@ -428,12 +418,6 @@ if [ ${use_mpi} == duno ] ; then
 	else
 		use_mpi="nop"
 	fi
-fi
-
-# Keep the legacy ADAT default outside the reorganized stack.
-if [ x${use_adat_mpi}x == xx ]; then
-	use_adat_mpi="$use_mpi"
-	[ $use_devel_datalib_reorg == yes ] && use_adat_mpi="nop"
 fi
 
 # Set default compilers
@@ -2744,7 +2728,7 @@ if [ x${adat}x != xx ]; then
 	adat_install="${adat_src}"
 	[ $use_superb == yes ] && adat_install="${adat_src}-${superbblas_src}"
 	if [ $use_devel_datalib_reorg == yes ]; then
-		[ $use_adat_mpi == yes ] && adat_install+="-mpi" || adat_install+="-serial"
+		[ $use_mpi == yes ] && adat_install+="-mpi" || adat_install+="-serial"
 	fi
 	sdir="${srcdir}/${adat_src}"
 	bdir="${builddir}/${adat_install}"
@@ -2758,12 +2742,12 @@ if [ x${adat}x != xx ]; then
 		run mkdir -p $bdir
 		(
 		cd $bdir
-		[ $use_adat_mpi == yes ] || use_serial_compilers || exit $?
+		[ $use_mpi == yes ] || use_serial_compilers || exit $?
 		adat_extra=""
 		[ $use_devel_datalib_reorg == yes ] && adat_extra+=" --with-datalib=${installdir}/${datalib_install}"
 		[ $use_superb == yes ] && adat_extra+=" --with-superbblas=${installdir}/${superbblas_install}"
 		[ $use_superb == yes -a $use_arch != cpu ] && adat_extra+=" --with-gpu"
-		[ $use_adat_mpi == yes ] && adat_extra+=" --enable-mpi"
+		[ $use_mpi == yes ] && adat_extra+=" --enable-mpi"
 		run ${sdir}/configure --prefix=${idir} $adat_extra
 		run ${MYMAKE} install -j $MAKE_JN
 		) || exit $?
