@@ -83,11 +83,12 @@ Some packages have special optional features.
    reorganization branch, so selecting QDP-JIT for this stack is rejected.
 
 * `--mpi=yes|no`:
-   Controls MPI support consistently for ADAT, Colorvec, and Redstar. With
-   `--mpi=yes`, they use the MPI toolchain and enable their MPI routines. With
-   `--mpi=no`, they build serially, using the underlying non-MPI compilers.
-   Datalib always builds serially, regardless of this option. Reorganized Chroma
-   requires MPI and does not depend on ADAT.
+   Controls optional MPI support in ADAT, Colorvec, and Redstar. The Redstar-chain
+   workflow documented below uses `--mpi=no`; MPI support remains available for
+   workflows that explicitly require it. Compiler selection is separate from
+   enabling MPI routines: choosing an MPI wrapper as `CXX` alone does not enable
+   them. Datalib always builds serially, regardless of this option. Reorganized
+   Chroma requires MPI and does not depend on ADAT.
 
 Datalib is shared by ADAT and Chroma and never needs an MPI compiler. Chromaform
 queries Open MPI wrappers with `--showme:command`, or MPICH/Intel MPI wrappers
@@ -111,18 +112,15 @@ This builds standalone datalib as needed and enables Chroma's `CORR_SUPERB` task
 with `--with-datalib` and `--with-superbblas`. It does not build or depend on ADAT.
 QDP++ uses `parscalar`, and QMP uses MPI communication.
 
-Build Colorvec separately with MPI and OpenBLAS:
+Build Colorvec separately as part of the serial Redstar chain, using OpenBLAS:
 
 ```bash
-./chromaform --devel-datalib-reorg --mpi=yes --blas=openblas colorvec
+./chromaform --devel-datalib-reorg --mpi=no --blas=openblas colorvec
 ```
 
-This builds ADAT and standalone datalib as needed, then builds Colorvec against
-that ADAT installation. Both commands use the `rge/devel-datalib-reorg` branches
-of the relevant packages listed above.
-
-The Colorvec command enables MPI for both Colorvec and ADAT; datalib stays serial.
-To build serial Colorvec and ADAT, use `--mpi=no` instead.
+This builds serial ADAT and standalone datalib as needed, then builds serial
+Colorvec against that ADAT installation. The Chroma and Colorvec commands use
+`rge/devel-datalib-reorg` for the relevant packages listed above.
 
 Build serial Redstar, Colorvec, and ADAT with OpenBLAS. Redstar also uses
 `rge/devel-datalib-reorg`, with a separate source directory from its default
