@@ -1281,8 +1281,8 @@ gcc                    https://mirrors.ocf.berkeley.edu/gnu/gcc/gcc-14.1.0/gcc-1
 isl                    https://gcc.gnu.org/pub/gcc/infrastructure/isl-0.24.tar.bz2
 mpc                    https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz
 boost                  https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
-ucx                    https://github.com/openucx/ucx/releases/download/v1.16.0/ucx-1.16.0.tar.gz
-openmpi                https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.3.tar.bz2
+ucx                    https://github.com/openucx/ucx/releases/download/v1.22.0/ucx-1.22.0.tar.gz
+openmpi                https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.11.tar.bz2
 mvapich2               https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz
 autoconf               http://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
 automake               https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz
