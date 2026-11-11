@@ -11,7 +11,7 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--cmake=build|--cmake=system] [--llvm=build|--llvm=system]                    \\
            [--thrust=build|--thrust=system] [--gmp=build|--gmp=system]                    \\
            [--libxml2=build|--libxml2=system] [--tinfo=build|--tinfo=system]              \\
-           [--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
+           [--blas=accelerate|--blas=openblas|--blas=openblas-system|--blas=atlas-system|--blas=mkl]        \\
            [-g|-O|-Onone] [--avx|--avx2|--knl|--avx512|--zen2|...|-zen5] [--autoflags=no] \\
            [--std=c++11|--std=c++14|--std=c++17|--std=c++20]                              \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
@@ -59,7 +59,7 @@ Some packages have special optional features.
 --mg
    Install multigrid extension of chroma; it isn't installed by default.
 --superb
-   Install the superbblas extensions of chroma; it isn't installed by default.
+   Enable superbblas in Chroma and in ADAT for Redstar; disabled by default.
 --master
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
@@ -86,7 +86,9 @@ Some packages have special optional features.
    downloads a recent version. By default, it detects the thrust version available, and
    download cub and thrust if it is not.
 
---blas=[openblas|openblas-system|atlas-system|mkl]
+--blas=[accelerate|openblas|openblas-system|atlas-system|mkl]
+   Use Apple's Accelerate BLAS/LAPACK framework with 'accelerate' (macOS only).
+   On macOS this is the default unless BLAS flags, MKLROOT, or OpenBLAS are given.
    Build OpenBLAS if 'openblas' is given, or use the system OpenBLAS, ATLAS, or MKL if
    'openblas-system', 'atlas-system', 'mkl' is given, respectively. If using MKL, plase
    set the environ variable MKLROOT. By default, it detects if there are flags in LDFLAGS
@@ -289,6 +291,7 @@ for (( i=1 ; i<=n ; ++i )); do
 	--thrust=system) use_thrust="thrust-system";;
 	--cmake=build) use_cmake="cmake";;
 	--cmake=system) use_cmake="cmake-system";;
+	--blas=accelerate) use_blas="accelerate";;
 	--blas=openblas) use_blas="openblas";;
 	--blas=openblas-system) use_blas="openblas-system";;
 	--blas=atlas-system) use_blas="atlas-system";;
@@ -477,6 +480,7 @@ detect_fortran_compiler() {
 if [ x${use_blas}x == xx ]; then
 	info "No BLAS suggestion give; detecting BLAS..."
 	case "$LDFLAGS $LIBS" in
+	*Accelerate*) use_blas="accelerate";;
 	*libmkl*|*-mkl*) use_blas="mkl-system";;
 	*openblas*) use_blas="openblas-system";;
 	*atlas*) use_blas="atlas-system";;
@@ -488,6 +492,8 @@ if [ x${use_blas}x == xx ]; then
 			CFLAGS+=" -I${MKLROOT}/include"
 			CXXFLAGS+=" -I${MKLROOT}/include"
 			LIBS+=" -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl"
+		elif [ "`uname -s`" == Darwin ]; then
+			use_blas="accelerate"
 		elif pkg-config --cflags openblas &> /dev/null; then
 			use_blas="openblas-system"
 			CFLAGS+=" `pkg-config --cflags openblas`"
@@ -502,6 +508,19 @@ if [ x${use_blas}x == xx ]; then
 			use_blas="openblas"
 		fi
 	;;
+	esac
+fi
+
+# Accelerate exposes the LP64 Fortran BLAS/LAPACK ABI used by these packages.
+# Keep its framework flags in LIBS, after objects and static libraries at link time.
+if [ "$use_blas" == accelerate ]; then
+	if [ "`uname -s`" != Darwin ]; then
+		echo "--blas=accelerate requires macOS"
+		exit 1
+	fi
+	case "$LDFLAGS $LIBS" in
+	*Accelerate*) ;;
+	*) LIBS+=" -framework Accelerate";;
 	esac
 fi
 
@@ -910,7 +929,7 @@ if [ ${use_autoflags} == yes ]; then
 			;;
 	esac
 
-	if [ x${use_openmp}x == xx ] && [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
+	if [ x${use_openmp}x != xnopx ] && [ "`uname -s`" == "Darwin" ] && [ "`detect_compiler`" == clang ] && ( $CXX --version 2>&1 | grep -q "Apple clang" ); then
 		apple_found_omp="nop"
 		if command -v pkg-config &> /dev/null && pkg-config --exists libomp; then
 			libomp_apple_cflags="`pkg-config --cflags libomp`"
@@ -934,7 +953,11 @@ if [ ${use_autoflags} == yes ]; then
 			info "Found libomp for Apple clang; enabling OpenMP"
 			use_openmp="yes"
 		else
-			info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP unless explicitly requested"
+			if [ "$use_openmp" == yes ]; then
+				echo "OpenMP requested with Apple clang, but libomp was not found. Install libomp (brew install libomp) or supply OpenMP flags with --autoflags=no."
+				exit 1
+			fi
+			info "Apple clang on macOS lacks OpenMP by default; disabling OpenMP"
 			use_openmp="nop"
 		fi
 	fi
@@ -1755,8 +1778,11 @@ case $use_blas in
 	mkl*) blas="Intel10_64lp_seq";;
 	openblas*) blas="OpenBLAS"; [ x${openblas}x != xx ] && cmake_blas_extra=" -DLAPACK_LIBRARIES=${installdir}/${openblas_install}/lib/libopenblas.a -DBLAS_openblas_LIBRARY=${installdir}/${openblas_install}/lib/libopenblas.a";;
 	atlas*) blas="ATLAS";;
+	accelerate) blas="Apple";;
 esac
-CMAKE_EXTRA_FLAGS="-DBLA_STATIC=ON -DBLA_VENDOR=$blas $cmake_blas_extra $CMAKE_EXTRA_FLAGS" 
+blas_static=ON
+[ "$use_blas" == accelerate ] && blas_static=OFF
+CMAKE_EXTRA_FLAGS="-DBLA_STATIC=$blas_static -DBLA_VENDOR=$blas $cmake_blas_extra $CMAKE_EXTRA_FLAGS"
 
 if [ x${gsl}x != xx ]; then
 	gsl_install="${gsl_src}"
@@ -1814,6 +1840,7 @@ if [ x${tensor}x != xx ]; then
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		pushd $bdir
+		[ "$use_blas" == accelerate ] && tensor_extra_opts+=" --with-backend=veclib"
 		case "`detect_compiler`" in
 		icc) run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts CC=icc CXX=icpc ;;
 		*)   run ${sdir}/configure --prefix=${idir} --without-arpack $tensor_extra_opts F77=$FC ;;
@@ -2395,6 +2422,17 @@ if [ x${superbblas}x != xx ]; then
 	elif [ ${superbblas} == install -o ! -d ${idir} ]; then
 		run rm -rf $bdir $idir
 		run cp -r ${srcdir}/${superbblas_src}/ $bdir
+		if [ "`uname -s`" == Darwin ]; then
+			# BSD split does not implement GNU split's line-preserving -n l/10.
+			# Patch only the build copy; generate all ten expected source chunks.
+			"$PYTHON" - "$bdir/src/Makefile" <<'PY_SPLIT' || exit $?
+from pathlib import Path
+import sys
+makefile = Path(sys.argv[1])
+command = "$(PYTHON) -c 'import pathlib,sys; lines=pathlib.Path(sys.argv[1]).read_text().splitlines(True); [pathlib.Path(sys.argv[2]+str(i)).write_text(\"\".join(lines[len(lines)*i//10:len(lines)*(i+1)//10])) for i in range(10)]' \"$<\" \"$(LIB_SOURCE_STEM)_\""
+makefile.write_text(makefile.read_text().replace("split -d -n l/10 -a 1 $< $(LIB_SOURCE_STEM)_", command))
+PY_SPLIT
+		fi
 		make_action="install_cpu"
 		if [ $use_arch == cuda ]; then
 			make_action="install_cuda"
@@ -2413,7 +2451,10 @@ if [ x${superbblas}x != xx ]; then
 		#[ $use_superb_next == yes ] && sb_cxx_extra+=" -DSUPERBBLAS_USE_XSIMD -I${srcdir}/${xsimd_src}/include"
 		CXXFLAGS_sb="${CXXFLAGS//--craype-append-opt=/} $sb_cxx_extra"
 		[ $use_arch != cpu ] && CXXFLAGS_sb="${CXXFLAGS_sb//-std=c++??/} -std=c++20"
-		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb"
+		sb_make_extra=()
+		[ "`uname -s`" == Darwin ] && sb_make_extra+=("PYTHON=$PYTHON")
+		[ "$use_blas" == accelerate ] && sb_make_extra+=("BLAS_LDFLAGS=$LIBS")
+		run $MYMAKE -C ${bdir} -j $MAKE_JN $make_action BUILDDIR=${idir} CXXFLAGS="$CXXFLAGS_sb" "${sb_make_extra[@]}"
 	fi
 	# Add flags to compile and link with HIP runtime and to link with clang openmp
 	[ $use_arch == hip ] && CXXFLAGS+=" `$HIPCONFIG -C | tr '\n' ' '` -I`$HIPCONFIG -R`/include"
@@ -2510,6 +2551,19 @@ if [ x${chroma}x != xx ]; then
 		run rm -rf $bdir $idir
 		run mkdir -p $bdir
 		pushd $bdir
+		if [ "`uname -s`" == Darwin ]; then
+			# Current Chroma devel has a typo in the no-redstar-datalib fallback.
+			"$PYTHON" - "$sdir/lib/meas/inline/io/inline_cmd.cc" <<'PY_CHROMA' || exit $?
+from pathlib import Path
+import sys
+source = Path(sys.argv[1])
+if source.exists():
+    text = source.read_text()
+    fixed = text.replace("remaining_cmds = failed_cmds;", "remaining_cmds = local_failed_cmds;")
+    if fixed != text:
+        source.write_text(fixed)
+PY_CHROMA
+		fi
 		if [ ${use_qdp_cmake} == nop ]; then
 			( cd $sdir && run autoreconf -fi )
 			if [ x${mgproto}x != xx ]; then
@@ -2606,6 +2660,7 @@ if [ x${hadron}x != xx ]; then
 		cpu)
 			[ $use_blas == mkl-system ] && hadron_extra+=" --enable-mkl"
 			[ $use_blas == openblas -o $use_blas == openblas-system ] && hadron_extra+=" --enable-openblas"
+			[ "$use_blas" == accelerate ] && hadron_extra+=" --enable-macos-blas"
 			;;
 		cuda)
 			hadron_extra+=" --enable-cuda --with-cudasm=${SM#sm_} --with-cuda=${CUDADIR}"
@@ -2620,7 +2675,8 @@ if [ x${hadron}x != xx ]; then
 			[ $use_opt == opt ] && hadron_extra+=" HIPCCFLAGS=-O3"
 			;;
 		esac
-		sed 's/hadron_cxxld="@CXXLD@"/hadron_cxxld="@CXX@"/' -i ${sdir}/hadron-config.in
+		sed 's/hadron_cxxld="@CXXLD@"/hadron_cxxld="@CXX@"/' ${sdir}/hadron-config.in > ${bdir}/hadron-config.in.tmp
+		run cp ${bdir}/hadron-config.in.tmp ${sdir}/hadron-config.in
 		[ x${use_openmp}x != xnopx ] && CXXFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && CFLAGS+=" -DHAVE_OPENMP"
 		[ x${use_openmp}x != xnopx ] && hadron_extra+=" --enable-openmp"
