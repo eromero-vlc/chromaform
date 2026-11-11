@@ -14,8 +14,8 @@ chromaform [--source-dir=dir] [--build-dir=dir] [--install-dir=dir]             
            [--std=c++11|--std=c++14|--std=c++17|--std=c++20]                              \\
            [--clean|--install|--update|--download-only] [gcc] [openmpi] [mvapich2]        \\
            [cmake] [llvm] [automake] [cub] [thrust] [openblas] [gmp] [libxml2] [eigen]    \\
-           [ncurses] [libfuse3] [anarchofs]                                               \\
-           [qmp] [qdp] [superbblas] [primme] [magma] [mgproto] [qphix] [quda] [chroma]    \\
+           [ncurses] [libfuse3] [anarchofs] [magma]                                       \\
+           [qmp] [qdp] [superbblas] [primme] [mgproto] [qphix] [quda] [chroma] [datalib]  \\
            [laplace_eigs] [adat] [colorvec] [tensor] [hadron] [redstar] [redstardl]       \\
            [CC=...] [CFLAGS=...] [CXX=...] [CXXFLAGS=...] [FC=...] [SM=...]               \\
            [CMAKE_EXTRA_FLAGS=...]
@@ -68,8 +68,12 @@ Some packages have special optional features.
 * `--master`:
    Install the master branches of adat, colorvec, redstar, superbblas, chroma; the devel
    branch is installed by default otherwise.
-* `--rge-no-1pt`:
-   Install the adat and chroma branch `devel-rge-no_1pt`
+* `--devel-datalib-reorg`:
+   Install rge/devel-datalib-reorg branches of datalib, adat, colorvec, redstar,
+   QDP++, and chroma, building standalone datalib before its consumers. Enables --superb;
+   Chroma uses MPI; --mpi controls ADAT, Colorvec, and Redstar.
+* `--mpi=yes|no`:
+   Enable or disable MPI for ADAT, Colorvec, and Redstar. 
 
 ## CMake, LLVM, BLAS, GMP, LIBXML2:
    Some packages require CMake, LLVM, and BLAS, and this are the options to select
