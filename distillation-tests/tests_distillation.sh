@@ -61,6 +61,7 @@ chroma_geom=""         # number of processes on each lattice direction
 chroma_extra=""        # chroma extra arguments
 redstar_version=14     # redstar XML version either (12 or 14)
 Nt=3                   # redstar correlation timeslices
+t_source=""            # time-slice source
 
 show_help() {
     cat <<'EOF'
@@ -154,9 +155,9 @@ for ((i = 1; i <= ${#}; ++i)); do
         --test-props=yes) do_props=yes ;;
         --test-props) do_props=yes ;;
         --test-props=no) do_props=nop ;;
-        --test-genprops=yes) do_genprops=yes ;;
-        --test-genprops) do_genprops=yes ;;
-        --test-genprops=no) do_genprops=nop ;;
+        --test-genprops=yes) do_gprops=yes ;;
+        --test-genprops) do_gprops=yes ;;
+        --test-genprops=no) do_gprops=nop ;;
         --test-eigenvalues=yes) do_eigenvalues=yes ;;
         --test-eigenvalues) do_eigenvalues=yes ;;
         --test-eigenvalues=no) do_eigenvalues=nop ;;
@@ -195,7 +196,7 @@ chroma_needed=nop
 redstar_needed=nop
 [ $do_redstar == yes ] && redstar_needed=yes
 
-# Set defaults
+#Set defaults
 [ "z$chromaform" != z -a "z$adat" == z ] && adat="$chromaform/install/adat-superbblas"
 [ "z$chromaform" != z -a "z$redstar" == z ] && redstar="$chromaform/install/redstar-colorvec-hadron-cpu-adat-superbblas"
 [ "z$chromaform" != z -a "z$laplace_eigs" == z ] && laplace_eigs="$chromaform/install/laplace_eigs-qdpxx-double-nd3/laplace_eigs"
@@ -203,7 +204,7 @@ redstar_needed=nop
 [ "z$adat" != z -a "z$dbutil" == z ] && dbutil="$adat/bin/dbutil"
 [ "z$chromaform" != z -a "z$storage_details" == z ] && storage_details="$chromaform/src/superbblas/tests/storage_details"
 if [ "z$storage_details" != z ] && [ ! -f $storage_details -a -d $(dirname $storage_details) ]; then
-    make -C $(dirname $storage_details) storage_details
+    make - C $(dirname $storage_details) storage_details
 fi
 if [ "z$chromaform" != z -a "z$chroma" == z ]; then
     case $arch in
@@ -256,6 +257,7 @@ t_size="$(echo $dims | awk '{print $4}')"
 spatial_size="$(echo $dims | awk '{print $1, $2, $3}')"
 do_phasings="nop yes"
 [ $redstar_version -ge 14 ] && do_phasings="nop yes mix"
+[ "z$t_source" == z ] && t_source="$((t_size - 1))"
 
 # Set env for chroma to perform better
 export SB_NUM_GPUS_ON_NODE=1
@@ -535,7 +537,7 @@ if [ $do_mesons == yes ]; then
         <version>4</version>
         <use_derivP>true</use_derivP>
         <use_superb_format>$(if [ $format == old ]; then echo false; else echo true; fi)</use_superb_format>
-        <t_source>0</t_source>
+        <t_source>$t_source</t_source>
         <Nt_forward>$((Nt))</Nt_forward>
         <mom2_min>0</mom2_min>
         <mom2_max>2</mom2_max>
@@ -631,7 +633,8 @@ $cnfparam
 EOF
                 rm -f meson-${phasing}-${format}-${part}.sdb
                 run "Computing mesons with chroma with phasing=${phasing} and format=${format}" $MPIRUN $chroma -i meson-${phasing}-${part}.xml $extra
-                [ $format == new -a $phasing != mix ] && run "Comparing mesons created by chroma" $dbutil meson-${phasing}-old-a.sdb compare meson-${phasing}-new-a.sdb -tol 1e-3 3e-6
+                [ $format == new -a $phasing == nop ] && run "Comparing mesons created by chroma" $dbutil meson-${phasing}-old-a.sdb compare meson-${phasing}-new-a.sdb -tol 1e-3 3e-6
+                [ $format == new -a $phasing == yes ] && run "Comparing mesons created by chroma" $dbutil meson-${phasing}-old-a.sdb@phase=${phase// /_} compare meson-${phasing}-new-a.sdb -tol 1e-3 3e-6
 
                 if [ $check_against_harom == yes -a $phasing != mix ]; then
                     eigf="$eigfile.mod"
@@ -873,7 +876,7 @@ if [ $do_props == yes ]; then
         <Contractions>
           <mass_label>U-0.2390</mass_label>
           <num_vecs>$num_vecs</num_vecs>
-          <t_sources>0 1 2</t_sources>
+          <t_sources>$((t_source)) $(((t_source + 1) % t_size)) $(((t_source + 2) % t_size))</t_sources>
           <Nt_forward>$((Nt))</Nt_forward>
           <Nt_backward>$((Nt))</Nt_backward>
           <decay_dir>3</decay_dir>
@@ -997,14 +1000,14 @@ if [ $do_gprops == yes ]; then
          <PropSources>
            <elem>
              <cacheP>true</cacheP>
-             <t_source>0</t_source>
+             <t_source>$t_source</t_source>
              <num_vecs>$num_vecs</num_vecs>
              <Nt_forward>0</Nt_forward>
              <Nt_backward>0</Nt_backward>
            </elem>
            <elem>
              <cacheP>true</cacheP>
-             <t_source>$tsep</t_source>
+             <t_source>$(((t_source + tsep) % t_size))</t_source>
              <num_vecs>$num_vecs</num_vecs>
              <Nt_forward>0</Nt_forward>
              <Nt_backward>0</Nt_backward>
@@ -1012,14 +1015,14 @@ if [ $do_gprops == yes ]; then
          </PropSources>
          <SinkSourcePairs>
             <elem>
-              <t_source>0</t_source>
-              <t_sink>$tsep</t_sink>
+              <t_source>$t_source</t_source>
+              <t_sink>$(((t_source + tsep) % t_size))</t_sink>
               <Nt_forward>$((Nt))</Nt_forward>
               <Nt_backward>0</Nt_backward>
             </elem>
             <elem>
-              <t_source>0</t_source>
-              <t_sink>0</t_sink>
+              <t_source>$t_source</t_source>
+              <t_sink>$t_source</t_sink>
               <Nt_forward>$((Nt))</Nt_forward>
               <Nt_backward>0</Nt_backward>
             </elem>
@@ -1252,7 +1255,7 @@ if [ $do_disco == yes ]; then
         <probing_power>8</probing_power>
         <noise_vectors>1</noise_vectors>
     <max_rhs>12</max_rhs>
-        <t_sources>1</t_sources>
+        <t_sources>$t_source</t_sources>
         <use_superb_format>$(if [ $task == new2 ]; then echo false; else echo true; fi)</use_superb_format>
     <num_vecs>4</num_vecs>
         $smearing
@@ -1516,7 +1519,7 @@ pion_pionxD0_J0__J0_H0D4A2 0 0 1" | while read op mom; do
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD0J0S_J1o2_G1g1</name>
+                       <name>NucleonMHg1SxD2J2M_J1o2_G1g1</name>
                        $(mom_class 0 0 0)
                      </elem>
                    </Operators>
@@ -1545,7 +1548,7 @@ pion_pionxD0_J0__J0_H0D4A2 0 0 1" | while read op mom; do
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD0J0S_J1o2_G1g1</name>
+                       <name>NucleonMHg1SxD2J2M_J1o2_G1g1</name>
                        $(mom_class 0 0 0)
                      </elem>
                    </Operators>
@@ -1578,7 +1581,7 @@ pion_pionxD0_J0__J0_H0D4A2 0 0 1" | while read op mom; do
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD2J1M_J1o2_H1o2D4E1</name>
+                       <name>NucleonMG1g1MxD2J2M_J3o2_H1o2D4E1</name>
                        $(mom_class 1 0 0)
                      </elem>
                    </Operators>
@@ -1607,7 +1610,7 @@ pion_pionxD0_J0__J0_H0D4A2 0 0 1" | while read op mom; do
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD2J1M_J1o2_H1o2D4E1</name>
+                       <name>NucleonMG1g1MxD2J2M_J3o2_H1o2D4E1</name>
                        $(mom_class 1 0 0)
                      </elem>
                    </Operators>
@@ -1652,7 +1655,7 @@ npoint_3pt() {
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD0J0S_J1o2_G1g1</name>
+                       <name>NucleonMHg1SxD2J1M_J1o2_G1g1</name>
                        $(mom_class 0 0 0)
                      </elem>
                    </Operators>
@@ -1713,7 +1716,7 @@ npoint_3pt() {
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD0J0S_J1o2_G1g1</name>
+                       <name>NucleonMHg1SxD2J1M_J1o2_G1g1</name>
                        $(mom_class 0 0 0)
                      </elem>
                    </Operators>
@@ -1746,7 +1749,7 @@ npoint_3pt() {
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</name>
+                       <name>NucleonMG1g1MxD2J2S_J3o2_H1o2D4E1</name>
                        $(mom_class 0 0 1)
                      </elem>
                    </Operators>
@@ -1807,7 +1810,7 @@ npoint_3pt() {
                  <Op>
                    <Operators>
                      <elem>
-                       <name>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</name>
+                       <name>NucleonMG1g1MxD2J2S_J3o2_H1o2D4E1</name>
                        $(mom_class 0 0 1)
                      </elem>
                    </Operators>
@@ -1978,7 +1981,7 @@ if [ $do_redstar == yes ]; then
     <convertUDtoS>false</convertUDtoS>
     <average_1pt_diagrams>true</average_1pt_diagrams>
     <zeroUnsmearedGraphsP>false</zeroUnsmearedGraphsP>
-    <t_origin>0</t_origin>
+    <t_origin>$t_source</t_origin>
     <use_superb>${with_superb}</use_superb>
     <bc_spec>-1</bc_spec>
     <Layout>
@@ -2114,7 +2117,7 @@ EOF
       <Param>
           <mass_label>U-0.2390</mass_label>
           <num_vecs>$num_vecs</num_vecs>
-          <t_origin>0</t_origin>
+          <t_origin>$t_source</t_origin>
           <Nt_forward>$((Nt))</Nt_forward>
           <decay_dir>3</decay_dir>
           <ensemble>${confsname}</ensemble>
